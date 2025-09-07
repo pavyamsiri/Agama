@@ -7,7 +7,7 @@ name = "agama"
 version = "1.0"
 description = "Action-based galaxy modelling architecture"
 readme = "README"
-requires-python = ">=2.7"
+requires-python = ">=3.12"
 license = { file = "LICENSE" }
 authors = [
     {name = "Eugene Vasiliev", email = "eugvas@protonmail.com"}
@@ -26,3 +26,59 @@ classifiers = [
 Homepage = "https://github.com/GalacticDynamics-Oxford/Agama"
 Download = "https://github.com/GalacticDynamics-Oxford/Agama/archive/master.zip"
 
+[tool.pyright]
+exclude = [".venv"]
+venvPath = "."
+venv = ".venv"
+pythonPlatform = "All"
+typeCheckingMode = "strict"
+
+deprecateTypingAliases = true
+enableReachabilityAnalysis = false
+enableTypeIgnoreComments = false
+reportCallInDefaultInitializer = true
+reportImplicitOverride = true
+reportImportCycles = true
+reportMissingSuperCall = true
+reportPropertyTypeMismatch = false
+reportShadowedImports = true
+reportUninitializedInstanceVariable = true
+reportUnnecessaryTypeIgnoreComment = true
+
+# overridden in the execution environments
+reportInvalidStubStatement = false
+
+# type-checkers should type-check; linters should lint
+reportImplicitStringConcatenation = false
+reportPrivateImportUsage = false
+reportPrivateUsage = false
+
+# basedpyright
+failOnWarnings = true
+reportIgnoreCommentWithoutRule = true
+reportImplicitAbstractClass = true
+reportImplicitRelativeImport = true
+reportInvalidCast = true
+reportPrivateLocalImportUsage = true
+reportUnannotatedClassAttribute = false
+strictGenericNarrowing = false
+
+[tool.ruff]
+line-length = 130
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "ANN101",
+    "ANN102",
+    "COM812",
+    "D203",
+    "D213",
+    "ISC001",
+    "PLR0913",
+    "PLR0915",
+    "PLR2004",
+    "S101",
+    "TD003",
+    "C901",
+]
