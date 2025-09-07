@@ -1,12 +1,12 @@
 [build-system]
-requires = ["setuptools", "wheel", "numpy"]
-build-backend = "setuptools.build_meta"
+requires = ["meson-python", "cvxopt", "numpy"]
+build-backend = "mesonpy"
 
 [project]
 name = "agama"
 version = "1.0"
 description = "Action-based galaxy modelling architecture"
-readme = "README"
+readme = "README.md"
 requires-python = ">=3.12"
 license = { file = "LICENSE" }
 authors = [
