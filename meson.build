@@ -290,6 +290,12 @@ install_subdir('data', install_dir: get_option('datadir') / 'agama')
 install_subdir('doc', install_dir: get_option('datadir') / 'agama')
 install_subdir('py', install_dir: get_option('datadir') / 'agama')
 install_subdir('tests', install_dir: get_option('datadir') / 'agama')
+# Install all type stubs
+install_subdir(
+  'stubs/agama',
+  install_dir: py.get_install_dir() / 'your_package'-stubs / 'your_package',
+  strip_directory: true
+)
 
 # Install various documentation files
 install_data(

@@ -30,6 +30,7 @@ Download = "https://github.com/GalacticDynamics-Oxford/Agama/archive/master.zip"
 exclude = [".venv"]
 venvPath = "."
 venv = ".venv"
+stubPath = "stubs"
 pythonPlatform = "All"
 typeCheckingMode = "strict"
 
