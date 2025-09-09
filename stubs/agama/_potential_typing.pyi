@@ -1,0 +1,36 @@
+from typing import Literal
+
+type _PotentialType = Literal[
+    "logarithmic",
+    "harmonic",
+    "keplerbinary",
+    "nfw",
+    "plummer",
+    "dehnen",
+    "ferrers",
+    "isochrone",
+    "nuker",
+    "basisSet",
+    "multipole",
+    "cylspline",
+    "miyamotonagai",
+    "king",
+    "evolving",
+    "uniformacceleration",
+    "perfectellipsoid",
+    "densitysphericalharmonic",
+    "densityazimuthalharmonic",
+]
+type _DensityType = Literal[
+    "dehnen",
+    "plummer",
+    "perfectellipsoid",
+    "ferrers",
+    "miyamotonagai",
+    "nfw",
+    "disk",
+    "spheroid",
+    "nuker",
+    "sersic",
+    "king",
+]
