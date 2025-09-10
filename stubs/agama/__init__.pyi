@@ -57,14 +57,38 @@ __all__ = [
 
 __version__: Final[str]
 
+# -- IO --
 type _WriteFormat = L["t", "n", "g"]
 
-def readSnapshot(filename: str, /) -> tuple[onp.Array2D[np.float64], onp.Array1D[np.float64]]: ...  # noqa: N802
-def writeSnapshot(  # noqa: N802
+def readSnapshot(filename: str, /) -> tuple[onp.Array2D[np.float64], onp.Array1D[np.float64]]: ...
+def writeSnapshot(
     filename: str,
     particles: tuple[onp.ToJustFloat64_2D, onp.ToJustFloat64_1D],
-    format: _WriteFormat | str = "t",  # noqa: A002
+    format: _WriteFormat | str = "t",
 ) -> None: ...
+
+# -- Misc --
+def setRandomSeed(seed: int) -> None: ...
+
+# Reset units
+@overload
+def setUnits() -> None: ...
+
+# Specify mass, length and time
+@overload
+def setUnits(*, mass: float, length: float, time: float) -> None: ...
+
+# Specify mass, length and velocity
+@overload
+def setUnits(*, mass: float, length: float, velocity: float) -> None: ...
+
+# Specify mass, time and velocity
+@overload
+def setUnits(*, mass: float, time: float, velocity: float) -> None: ...
+
+type _UnitDimension = L["mass", "length", "time", "velocity"]
+
+def getUnits() -> dict[_UnitDimension, float]: ...
 
 class ActionFinder:
     def __init__(self, potential: _Potential, interp: bool = False) -> None: ...
