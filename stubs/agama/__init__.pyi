@@ -1,30 +1,14 @@
 from collections.abc import Callable, Sequence
 from types import TracebackType
-from typing import Any, Final, Protocol, Self, overload
+from typing import Any, Final, Self, overload
 from typing import Literal as L
 
 import numpy as np
+from agama._actions import actions
+from agama._potential_typing import ActionFinder, Density, Potential, Spline
 from optype import numpy as onp
 
-from ._potential_typing import _DensityType
-
-type _Array1D[_SCT: np.generic] = np.ndarray[tuple[int], np.dtype[_SCT]]
-type _Array2D[_SCT: np.generic] = np.ndarray[tuple[int, int], np.dtype[_SCT]]
-type _Potential = Potential | Callable[[_Array2D[np.floating[Any]]], _Array1D[np.bool_ | np.float32 | np.float64]]
-type _Density = Density | dict[str, object] | Callable[[_Array2D[np.floating[Any]]], _Array1D[np.bool_ | np.float32 | np.float64]]
-
-class _CanArray1D[_SCT: np.generic](Protocol):
-    def __len__(self, /) -> int: ...
-    def __array__(self, /) -> np.ndarray[tuple[int], np.dtype[_SCT]]: ...
-
-class _CanArray2D[_SCT: np.generic](Protocol):
-    def __len__(self, /) -> int: ...
-    def __array__(self, /) -> np.ndarray[tuple[int, int], np.dtype[_SCT]]: ...
-
-type _To1D1[_SCT: np.generic] = _CanArray1D[_SCT] | Sequence[_SCT]
-type _To1D2[_SCT: np.generic] = _CanArray2D[_SCT] | Sequence[_SCT]
-type _ToArray1D[_SCT: np.generic] = _CanArray1D[_SCT] | Sequence[_To1D1[_SCT]]
-type _ToArray2D[_SCT: np.generic] = _CanArray2D[_SCT] | Sequence[_To1D2[_SCT]]
+type _StorageType = np.float32
 
 __all__ = [
     "ActionFinder",
@@ -193,146 +177,33 @@ def splineLogDensity(
     smooth: float | None = None,
 ) -> Spline: ...
 
-class ActionFinder:
-    def __init__(self, potential: _Potential, interp: bool = False) -> None: ...
-    def __call__(
-        self,
-        point: object,
-        actions: bool = True,
-        angles: bool = False,
-        frequencies: bool = False,
-    ) -> None: ...
+# - `ghMoments`-
+# matrix is 1D
+@overload
+def ghMoments(
+    degree: int,
+    gridv: onp.ToJustFloat64_1D,
+    matrix: onp.Array1D[np.float64],
+    ghorder: int,
+    ghbasis: onp.ToJustFloat64_2D | None = None,
+) -> onp.Array1D[_StorageType]: ...
 
-class Density:
-    @overload
-    def __init__(self, cumulmass: _ToArray2D[np.float64]) -> None: ...
-    @overload
-    def __init__(self, filename: str) -> None: ...
-    @overload
-    def __init__(self, *args: _Density) -> None: ...
-    @overload
-    def __init__(
-        self,
-        *,
-        type: _DensityType | None = None,
-        density: _DensityType | None = None,
-        mass: float | None = None,
-        scaleradius: float | None = None,
-        scaleheight: float | None = None,
-        p: float | None = None,
-        q: float | None = None,
-        gamma: float | None = None,
-        beta: float | None = None,
-        alpha: float | None = None,
-        sersicIndex: float | None = None,
-        innercutoffradius: float | None = None,
-        outercutoffradius: float | None = None,
-        cutoffstrength: float | None = None,
-        surfacedensity: float | None = None,
-        densitynorm: float | None = None,
-        w0: float | None = None,
-        trunc: float | None = None,
-        center: tuple[float, float, float] | str | None = None,
-        orientation: tuple[float, float, float] | None = None,
-        rotation: float | str | None = None,
-        scale: tuple[float, float] | str | None = None,
-    ) -> None: ...
-    def density(
-        self,
-        xyz: tuple[float, float, float] | _ToArray2D[np.float64],
-        t: float | _ToArray1D[np.float64] | None = None,
-    ) -> float | _Array1D[np.float64]: ...
-    def projectedDensity(  # noqa: N802
-        self,
-        xyz: float | _ToArray1D[np.float64],
-    ) -> float | _Array1D[np.float64]: ...
-    def export(self, filename: str) -> None: ...
-    def sample(
-        self,
-        n: int,
-        potential: Potential | None = None,
-        beta: float | None = None,
-        kappa: float | None = None,
-    ) -> tuple[list[list[float]], list[float]]: ...
-    def totalMass(self) -> float: ...
-    def enclosedMass(self, r: float | Sequence[float]) -> float | list[float]: ...
-    def principalAxes(self, r: float | _ToArray1D[np.float64] | None = None) -> tuple[list[float], list[float]]: ...
-    def name(self) -> str: ...
-    def __getitem__(self, index: int) -> Density | Potential: ...
-    def __len__(self) -> int: ...
-    def __add__(self, other: Density) -> Density: ...
+# matrix is 2D
+@overload
+def ghMoments(
+    degree: int,
+    gridv: onp.ToJustFloat64_1D,
+    matrix: onp.Array2D[np.float64],
+    ghorder: int,
+    ghbasis: onp.ToJustFloat64_2D | None = None,
+) -> onp.Array2D[_StorageType]: ...
 
-class Potential(Density):
-    def __init__(
-        self,
-        *args: Any,
-        type: str | None = None,
-        density: str | Density | Callable[[Any], Any] | None = None,
-        potential: Potential | Callable[[Any], Any] | None = None,
-        file: str | None = None,
-        particles: tuple[Any, Any] | None = None,
-        symmetry: str | None = None,
-        gridSizeR: int | None = None,  # noqa: N803
-        gridSizeZ: int | None = None,  # noqa: N803
-        rmin: float | None = None,
-        rmax: float | None = None,
-        zmin: float | None = None,
-        zmax: float | None = None,
-        lmax: int | None = None,
-        mmax: int | None = None,
-        smoothing: float | None = None,
-        nmax: int | None = None,
-        eta: float | None = None,
-        r0: float | None = None,
-        center: Sequence[float] | str | None = None,
-        orientation: Sequence[float] | None = None,
-        rotation: float | Sequence[float] | str | None = None,
-        scale: Sequence[float] | str | None = None,
-    ) -> None: ...
-    def potential(
-        self,
-        x: float | Sequence[float] | Sequence[Sequence[float]],
-        y: float | None = None,
-        z: float | None = None,
-        t: float | Sequence[float] | None = None,
-    ) -> float | list[float]: ...
-    def force(
-        self,
-        x: float | Sequence[float] | Sequence[Sequence[float]],
-        y: float | None = None,
-        z: float | None = None,
-        t: float | Sequence[float] | None = None,
-    ) -> list[float] | list[list[float]]: ...
-    def forceDeriv(
-        self,
-        x: float | Sequence[float] | Sequence[Sequence[float]],
-        y: float | None = None,
-        z: float | None = None,
-        t: float | Sequence[float] | None = None,
-    ) -> Any: ...
-    def eval(
-        self,
-        x: float | Sequence[float] | Sequence[Sequence[float]],
-        y: float | None = None,
-        z: float | None = None,
-        t: float | Sequence[float] | None = None,
-    ) -> tuple[Any, Any, Any]: ...
-    def projectedEval(
-        self,
-        X: float | Sequence[float] | Sequence[Sequence[float]],  # noqa: N803
-        Y: float | None = None,  # noqa: N803
-        alpha: float | Sequence[float] | None = 0,
-        beta: float | Sequence[float] | None = 0,
-        gamma: float | Sequence[float] | None = 0,
-        t: float | Sequence[float] | None = 0,
-    ) -> tuple[Any, Any, Any]: ...
-    def Rcirc(self, E: float | Sequence[float], Lz: float | Sequence[float] | None = None) -> float | list[float]: ...  # noqa: N803
-    def Tcirc(self, E: float | Sequence[float], Lz: float | Sequence[float] | None = None) -> float | list[float]: ...  # noqa: N803
-    def Rmax(self, E: float | Sequence[float], Lz: float | Sequence[float] | None = None) -> float | list[float]: ...  # noqa: N803
-    def Rperiapo(
-        self,
-        E: float | Sequence[float],
-        Lz: float | Sequence[float] | None = None,  # noqa: N803
-    ) -> tuple[float | list[float], float | list[float]]: ...
-
-class Spline: ...
+# catch all for convertible to array types
+@overload
+def ghMoments(
+    degree: int,
+    gridv: onp.ToJustFloat64_1D,
+    matrix: onp.ToJustFloat64_1D | onp.ToJustFloat64_2D,
+    ghorder: int,
+    ghbasis: onp.ToJustFloat64_2D | None = None,
+) -> onp.Array1D[_StorageType] | onp.Array2D[_StorageType]: ...

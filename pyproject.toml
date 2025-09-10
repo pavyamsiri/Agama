@@ -87,6 +87,7 @@ ignore = [
     "N801",
     "N803",
     "N815",
+    "N817",
 ]
 
 [dependency-groups]
