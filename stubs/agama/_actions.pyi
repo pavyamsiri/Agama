@@ -300,3 +300,263 @@ def actions(
     angles: L[True],
     frequencies: L[None] = None,
 ) -> tuple[_TripletArray, _TripletArray, _TripletArray]: ...
+
+class ActionFinder:
+    def __init__(self, potential: _Potential, interp: bool = False) -> None: ...
+
+    # 1 actions=False, angles=False, frequencies=False
+    @overload
+    def __call__(
+        self,
+        point: _Sextet,
+        angles: L[False] = False,
+        *,
+        actions: L[False],
+        frequencies: L[False],
+    ) -> None: ...
+
+    # 2 actions=False, angles=False, frequencies=True
+    @overload
+    def __call__(
+        self,
+        point: _Sextet,
+        angles: L[False] = False,
+        *,
+        actions: L[False],
+        frequencies: L[True],
+    ) -> tuple[_Triplet]: ...
+
+    # 3 actions=False, angles=False, frequencies=None
+    @overload
+    def __call__(
+        self,
+        point: _Sextet,
+        actions: L[False],
+        angles: L[False] = False,
+        frequencies: L[None] = None,
+    ) -> None: ...
+
+    # 4 actions=False, angles=True, frequencies=False
+    @overload
+    def __call__(
+        self,
+        point: _Sextet,
+        actions: L[False],
+        angles: L[True],
+        frequencies: L[False],
+    ) -> tuple[_Triplet]: ...
+
+    # 5 actions=False, angles=True, frequencies=True
+    @overload
+    def __call__(
+        self,
+        point: _Sextet,
+        actions: L[False],
+        angles: L[True],
+        frequencies: L[True],
+    ) -> tuple[_Triplet, _Triplet]: ...
+
+    # 6 actions=False, angles=True, frequencies=None
+    @overload
+    def __call__(
+        self,
+        point: _Sextet,
+        actions: L[False],
+        angles: L[True],
+        frequencies: L[None] = None,
+    ) -> tuple[_Triplet, _Triplet]: ...
+
+    # 7 actions=True, angles=False, frequencies=False
+    @overload
+    def __call__(
+        self,
+        point: _Sextet,
+        actions: L[True] = True,
+        angles: L[False] = False,
+        *,
+        frequencies: L[False],
+    ) -> tuple[_Triplet]: ...
+
+    # 8 actions=True, angles=False, frequencies=True
+    @overload
+    def __call__(
+        self,
+        point: _Sextet,
+        actions: L[True] = True,
+        angles: L[False] = False,
+        *,
+        frequencies: L[True],
+    ) -> tuple[_Triplet, _Triplet]: ...
+
+    # 9 actions=True, angles=False, frequencies=None
+    @overload
+    def __call__(
+        self,
+        point: _Sextet,
+        actions: L[True] = True,
+        angles: L[False] = False,
+        frequencies: L[None] = None,
+    ) -> tuple[_Triplet]: ...
+
+    # 10 actions=True, angles=True, frequencies=False
+    @overload
+    def __call__(
+        self,
+        point: _Sextet,
+        actions: L[True] = True,
+        *,
+        angles: L[True],
+        frequencies: L[False],
+    ) -> tuple[_Triplet, _Triplet]: ...
+
+    # 11 actions=True, angles=True, frequencies=True
+    @overload
+    def __call__(
+        self,
+        point: _Sextet,
+        actions: L[True] = True,
+        *,
+        angles: L[True],
+        frequencies: L[True],
+    ) -> tuple[_Triplet, _Triplet, _Triplet]: ...
+
+    # 12 actions=True, angles=True, frequencies=None
+    @overload
+    def __call__(
+        self,
+        point: _Sextet,
+        actions: L[True] = True,
+        frequencies: L[None] = None,
+        *,
+        angles: L[True],
+    ) -> tuple[_Triplet, _Triplet, _Triplet]: ...
+
+    # Arrays
+    # 1 actions=False, angles=False, frequencies=False
+    @overload
+    def __call__(
+        self,
+        point: _SextetArray,
+        angles: L[False] = False,
+        *,
+        actions: L[False],
+        frequencies: L[False],
+    ) -> None: ...
+
+    # 2 actions=False, angles=False, frequencies=True
+    @overload
+    def __call__(
+        self,
+        point: _SextetArray,
+        angles: L[False] = False,
+        *,
+        actions: L[False],
+        frequencies: L[True],
+    ) -> tuple[_TripletArray]: ...
+
+    # 3 actions=False, angles=False, frequencies=None
+    @overload
+    def __call__(
+        self,
+        point: _SextetArray,
+        angles: L[False] = False,
+        frequencies: L[None] = None,
+        *,
+        actions: L[False],
+    ) -> None: ...
+
+    # 4 actions=False, angles=True, frequencies=False
+    @overload
+    def __call__(
+        self,
+        point: _SextetArray,
+        actions: L[False],
+        angles: L[True],
+        frequencies: L[False],
+    ) -> tuple[_TripletArray]: ...
+
+    # 5 actions=False, angles=True, frequencies=True
+    @overload
+    def __call__(
+        self,
+        point: _SextetArray,
+        actions: L[False],
+        angles: L[True],
+        frequencies: L[True],
+    ) -> tuple[_TripletArray, _TripletArray]: ...
+
+    # 6 actions=False, angles=True, frequencies=None
+    @overload
+    def __call__(
+        self,
+        point: _SextetArray,
+        frequencies: L[None] = None,
+        *,
+        actions: L[False],
+        angles: L[True],
+    ) -> tuple[_TripletArray, _TripletArray]: ...
+
+    # 7 actions=True, angles=False, frequencies=False
+    @overload
+    def __call__(
+        self,
+        point: _SextetArray,
+        actions: L[True] = True,
+        angles: L[False] = False,
+        *,
+        frequencies: L[False],
+    ) -> tuple[_TripletArray]: ...
+
+    # 8 actions=True, angles=False, frequencies=True
+    @overload
+    def __call__(
+        self,
+        point: _SextetArray,
+        actions: L[True] = True,
+        angles: L[False] = False,
+        *,
+        frequencies: L[True],
+    ) -> tuple[_TripletArray, _TripletArray]: ...
+
+    # 9 actions=True, angles=False, frequencies=None
+    @overload
+    def __call__(
+        self,
+        point: _SextetArray,
+        actions: L[True] = True,
+        angles: L[False] = False,
+        frequencies: L[None] = None,
+    ) -> tuple[_TripletArray]: ...
+
+    # 10 actions=True, angles=True, frequencies=False
+    @overload
+    def __call__(
+        self,
+        point: _SextetArray,
+        actions: L[True] = True,
+        *,
+        angles: L[True],
+        frequencies: L[False],
+    ) -> tuple[_TripletArray, _TripletArray]: ...
+
+    # 11 actions=True, angles=True, frequencies=True
+    @overload
+    def __call__(
+        self,
+        point: _SextetArray,
+        actions: L[True] = True,
+        *,
+        angles: L[True],
+        frequencies: L[True],
+    ) -> tuple[_TripletArray, _TripletArray, _TripletArray]: ...
+
+    # 12 actions=True, angles=True, frequencies=None
+    @overload
+    def __call__(
+        self,
+        point: _SextetArray,
+        actions: L[True] = True,
+        frequencies: L[None] = None,
+        *,
+        angles: L[True],
+    ) -> tuple[_TripletArray, _TripletArray, _TripletArray]: ...

@@ -44,16 +44,6 @@ type _DensityType = Literal[
     "king",
 ]
 
-class ActionFinder:
-    def __init__(self, potential: _Potential, interp: bool = False) -> None: ...
-    def __call__(
-        self,
-        point: object,
-        actions: bool = True,
-        angles: bool = False,
-        frequencies: bool = False,
-    ) -> None: ...
-
 class Density:
     @overload
     def __init__(self, cumulmass: _ToArray2D[np.float64]) -> None: ...

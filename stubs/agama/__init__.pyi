@@ -4,8 +4,8 @@ from typing import Any, Final, Self, overload
 from typing import Literal as L
 
 import numpy as np
-from agama._actions import actions
-from agama._potential_typing import ActionFinder, Density, Potential, Spline, _Potential
+from agama._actions import ActionFinder, actions
+from agama._potential_typing import Density, Potential, Spline, _Potential
 from optype import numpy as onp
 
 type _StorageType = np.float32
