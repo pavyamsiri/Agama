@@ -1,8 +1,9 @@
 from collections.abc import Callable, Sequence
-from typing import Any, Final, Protocol, overload, Literal as L
+from types import TracebackType
+from typing import Any, Final, Protocol, Self, overload
+from typing import Literal as L
 
 import numpy as np
-import optype as op
 from optype import numpy as onp
 
 from ._potential_typing import _DensityType
@@ -130,6 +131,20 @@ def integrateNdim(
     toler: float,
     maxeval: float,
 ) -> tuple[float, float, int]: ...
+
+# - `setNumThreads `-
+class setNumThreads:
+    currNumThreads: int
+    prevNumThreads: int
+
+    def __init__(self, num_threads: int) -> None: ...
+    def __enter__(self) -> Self: ...
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None: ...
 
 class ActionFinder:
     def __init__(self, potential: _Potential, interp: bool = False) -> None: ...
