@@ -56,6 +56,7 @@ __all__ = [
 ]
 
 __version__: Final[str]
+G: Final[float]
 
 # -- IO --
 type _WriteFormat = L["t", "n", "g"]
@@ -68,8 +69,10 @@ def writeSnapshot(
 ) -> None: ...
 
 # -- Misc --
+# - `setRandomSeed` -
 def setRandomSeed(seed: int) -> None: ...
 
+# - `setUnits` -
 # Reset units
 @overload
 def setUnits() -> None: ...
@@ -86,9 +89,47 @@ def setUnits(*, mass: float, length: float, velocity: float) -> None: ...
 @overload
 def setUnits(*, mass: float, time: float, velocity: float) -> None: ...
 
+# - `getUnits` -
 type _UnitDimension = L["mass", "length", "time", "velocity"]
 
 def getUnits() -> dict[_UnitDimension, float]: ...
+
+# - `sampleNdim` -
+type _SampleNdimCallable = Callable[
+    [onp.Array2D[np.float64]], onp.Array2D[np.float32] | onp.Array2D[np.float64] | onp.Array2D[np.bool_]
+]
+
+# `lower` is the number of dimensions
+@overload
+def sampleNdim(fnc: _SampleNdimCallable, nsamples: int, lower: int) -> tuple[onp.Array2D[np.float64], float, float, int]: ...
+
+# Both `lower` and `upper` are provided as arrays
+@overload
+def sampleNdim(
+    fnc: _SampleNdimCallable, nsamples: int, lower: onp.ToJustFloat64_1D, upper: onp.ToJustFloat64_1D
+) -> tuple[onp.Array2D[np.float64], float, float, int]: ...
+
+# - `integrateNdim` -
+type _IntegrateNdimCallable = Callable[
+    [onp.Array2D[np.float64]], onp.Array2D[np.float32] | onp.Array2D[np.float64] | onp.Array2D[np.bool_]
+]
+
+# `lower` is the number of dimensions
+@overload
+def integrateNdim(
+    fnc: _IntegrateNdimCallable, nsamples: int, lower: int, toler: float, maxeval: int
+) -> tuple[float, float, int]: ...
+
+# Both `lower` and `upper` are provided as arrays
+@overload
+def integrateNdim(
+    fnc: _IntegrateNdimCallable,
+    nsamples: int,
+    lower: onp.ToJustFloat64_1D,
+    upper: onp.ToJustFloat64_1D,
+    toler: float,
+    maxeval: float,
+) -> tuple[float, float, int]: ...
 
 class ActionFinder:
     def __init__(self, potential: _Potential, interp: bool = False) -> None: ...
