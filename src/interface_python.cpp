@@ -662,21 +662,19 @@ std::vector<PyObject*> toPyObjectArray(PyObject* obj)
 {
     std::vector<PyObject*> result;
     if(!obj) return result;
-    if(PyTuple_Check(obj)) {
+    if (PyTuple_Check(obj)) {
         for(Py_ssize_t i=0, size=PyTuple_Size(obj); i<size; i++)
             result.push_back(PyTuple_GET_ITEM(obj, i));
-    } else
-    if(PyList_Check(obj)) {
+    } else if (PyList_Check(obj)) {
         for(Py_ssize_t i=0, size=PyList_Size(obj); i<size; i++)
             result.push_back(PyList_GET_ITEM(obj, i));
-    } else
-    if(PyArray_Check(obj) && PyArray_TYPE((PyArrayObject*)obj) == NPY_OBJECT &&
+    } else if (PyArray_Check(obj) && PyArray_TYPE((PyArrayObject*)obj) == NPY_OBJECT &&
         PyArray_NDIM((PyArrayObject*)obj) == 1) {
         for(npy_intp i=0, size=PyArray_DIM((PyArrayObject*)obj, 0); i<size; i++)
             result.push_back(pyArrayElem<PyObject*>(obj, i));
-    }
-    else
+    } else {
         result.push_back(obj);  // return an array consisting of a single object
+    }
     return result;
 }
 

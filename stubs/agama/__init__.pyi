@@ -146,6 +146,53 @@ class setNumThreads:
         exc_tb: TracebackType | None,
     ) -> bool | None: ...
 
+# - `solveOpt`-
+# single argument for matrix
+@overload
+def solveOpt(
+    matrix: onp.Array2D[np.floating[Any]],
+    rhs: onp.ToJustFloat64_1D,
+    rpenl: onp.ToJustFloat64_1D | None = None,
+    rpenq: onp.ToJustFloat64_1D | None = None,
+    xpenl: onp.ToJustFloat64_1D | None = None,
+    xpenq: onp.ToJustFloat64_1D | None = None,
+    xmin: onp.ToJustFloat64_1D | None = None,
+    xmax: onp.ToJustFloat64_1D | None = None,
+) -> onp.Array1D[np.float64]: ...
+
+# list or tuple of matrices
+@overload
+def solveOpt(
+    matrix: Sequence[onp.Array2D[np.floating[Any]]],
+    rhs: Sequence[onp.ToJustFloat64_1D],
+    rpenl: Sequence[onp.ToJustFloat64_1D] | None = None,
+    rpenq: Sequence[onp.ToJustFloat64_1D] | None = None,
+    xpenl: onp.ToJustFloat64_1D | None = None,
+    xpenq: onp.ToJustFloat64_1D | None = None,
+    xmin: onp.ToJustFloat64_1D | None = None,
+    xmax: onp.ToJustFloat64_1D | None = None,
+) -> onp.Array1D[np.float64]: ...
+
+# - `splineApprox`-
+def splineApprox(
+    knots: onp.ToJustFloat64_1D,
+    x: onp.ToJustFloat64_1D,
+    y: onp.ToJustFloat64_1D,
+    w: onp.ToJustFloat64_1D | None = None,
+    smooth: float | None = None,
+) -> Spline: ...
+
+# - `splineLogDensity`-
+def splineLogDensity(
+    knots: onp.ToJustFloat64_1D,
+    x: onp.ToJustFloat64_1D,
+    w: onp.ToJustFloat64_1D | None = None,
+    infLeft: float | None = None,
+    infRight: float | None = None,
+    der3: int | None = None,
+    smooth: float | None = None,
+) -> Spline: ...
+
 class ActionFinder:
     def __init__(self, potential: _Potential, interp: bool = False) -> None: ...
     def __call__(
@@ -287,3 +334,5 @@ class Potential(Density):
         E: float | Sequence[float],
         Lz: float | Sequence[float] | None = None,  # noqa: N803
     ) -> tuple[float | list[float], float | list[float]]: ...
+
+class Spline: ...
