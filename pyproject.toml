@@ -83,3 +83,8 @@ ignore = [
     "TD003",
     "C901",
 ]
+
+[dependency-groups]
+dev = [
+    "optype[numpy]>=0.13.4",
+]

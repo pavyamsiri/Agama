@@ -1,7 +1,9 @@
 from collections.abc import Callable, Sequence
-from typing import Any, Final, Protocol, overload
+from typing import Any, Final, Protocol, overload, Literal as L
 
 import numpy as np
+import optype as op
+from optype import numpy as onp
 
 from ._potential_typing import _DensityType
 
@@ -55,6 +57,15 @@ __all__ = [
 
 __version__: Final[str]
 
+type _WriteFormat = L["t", "n", "g"]
+
+def readSnapshot(filename: str, /) -> tuple[onp.Array2D[np.float64], onp.Array1D[np.float64]]: ...  # noqa: N802
+def writeSnapshot(  # noqa: N802
+    filename: str,
+    particles: tuple[onp.ToJustFloat64_2D, onp.ToJustFloat64_1D],
+    format: _WriteFormat | str = "t",  # noqa: A002
+) -> None: ...
+
 class ActionFinder:
     def __init__(self, potential: _Potential, interp: bool = False) -> None: ...
     def __call__(
@@ -79,20 +90,20 @@ class Density:
         type: _DensityType | None = None,
         density: _DensityType | None = None,
         mass: float | None = None,
-        scaleradius: float | None = None,  
-        scaleheight: float | None = None,  
+        scaleradius: float | None = None,
+        scaleheight: float | None = None,
         p: float | None = None,
         q: float | None = None,
         gamma: float | None = None,
         beta: float | None = None,
         alpha: float | None = None,
-        sersicIndex: float | None = None,  
-        innercutoffradius: float | None = None,  
-        outercutoffradius: float | None = None,  
-        cutoffstrength: float | None = None,  
-        surfacedensity: float | None = None,  
-        densitynorm: float | None = None,  
-        w0: float | None = None,  
+        sersicIndex: float | None = None,
+        innercutoffradius: float | None = None,
+        outercutoffradius: float | None = None,
+        cutoffstrength: float | None = None,
+        surfacedensity: float | None = None,
+        densitynorm: float | None = None,
+        w0: float | None = None,
         trunc: float | None = None,
         center: tuple[float, float, float] | str | None = None,
         orientation: tuple[float, float, float] | None = None,
