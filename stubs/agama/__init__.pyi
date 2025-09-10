@@ -5,7 +5,7 @@ from typing import Literal as L
 
 import numpy as np
 from agama._actions import actions
-from agama._potential_typing import ActionFinder, Density, Potential, Spline
+from agama._potential_typing import ActionFinder, Density, Potential, Spline, _Potential
 from optype import numpy as onp
 
 type _StorageType = np.float32
@@ -207,3 +207,25 @@ def ghMoments(
     ghorder: int,
     ghbasis: onp.ToJustFloat64_2D | None = None,
 ) -> onp.Array1D[_StorageType] | onp.Array2D[_StorageType]: ...
+
+# - `orbit` -
+# TODO: This has a bunch of overloads
+def orbit(
+    *,
+    ic: onp.ToJustFloat64_1D | onp.ToJustFloat64_2D,
+    time: onp.ToJustFloat64 | onp.ToJustFloat64_1D,
+    timestart: onp.ToJustFloat64 | onp.ToJustFloat64_1D | None = None,
+    potential: _Potential,
+    targets: Sequence[Target] | None = None,
+    trajsize: onp.ToJustInt | onp.ToJustInt1D | None = None,
+    der: bool = False,
+    lyapunov: bool = False,
+    Omega: float = 0.0,
+    accuracy: float = 1e-8,
+    maxNumSteps: int = 100000000,
+    dtype: np.dtype[np.float32 | np.float64 | np.complex64 | np.complex128 | np.object_] | None = None,
+    method: str | None = None,
+    verbose: bool = True,
+) -> onp.Array2D[np.float64] | tuple[onp.Array2D[np.float64], ...]: ...
+
+class Target: ...
