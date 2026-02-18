@@ -2316,7 +2316,7 @@ Py_hash_t Density_hash(PyObject *self)
 {
     // use the smart pointer to the underlying C++ object, not the Python object itself,
     // to establish identity between two Python objects containing the same C++ class instance
-    return _Py_HashPointer(const_cast<void*>(static_cast<const void*>(((DensityObject*)self)->dens.get())));
+    return Py_HashPointer(const_cast<void*>(static_cast<const void*>(((DensityObject*)self)->dens.get())));
 }
 
 /// syntactic sugar: construct a composite density object by adding two density objects
@@ -4405,7 +4405,7 @@ Py_hash_t DistributionFunction_hash(PyObject *self)
 {
     // use the smart pointer to the underlying C++ object, not the Python object itself,
     // to establish identity between two Python objects containing the same C++ class instance
-    return _Py_HashPointer(const_cast<void*>(static_cast<const void*>
+    return Py_HashPointer(const_cast<void*>(static_cast<const void*>
         (((DistributionFunctionObject*)self)->df.get())));
 }
 
@@ -8847,18 +8847,18 @@ typedef struct PyModuleDef {
 } PyModuleDef;
 #define PyModuleDef_HEAD_INIT 0
 #define PyModule_Create(def) Py_InitModule3((def)->m_name, (def)->m_methods, (def)->m_doc)
-static PyObject* PyInit_agama(void);
-PyMODINIT_FUNC initagama(void) { PyInit_agama(); }
+static PyObject* PyInit__agama(void);
+PyMODINIT_FUNC initagama(void) { PyInit__agama(); }
 static PyObject*
 #else
 // Python 3
 PyMODINIT_FUNC
 #endif
-PyInit_agama(void)
+PyInit__agama(void)
 {
     static PyModuleDef moduledef = {
         PyModuleDef_HEAD_INIT, /* m_base */
-        "agama",               /* m_name */
+        "_agama",               /* m_name */
         docstringModule,       /* m_doc  */
         -1,                    /* m_size */
         module_methods,        /* m_methods */

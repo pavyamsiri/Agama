@@ -13,7 +13,7 @@ authors = [
     {name = "Eugene Vasiliev", email = "eugvas@protonmail.com"}
 ]
 dependencies = [
-    "numpy"
+    "numpy>=2",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
