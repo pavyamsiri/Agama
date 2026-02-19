@@ -7,6 +7,7 @@
 #include <cmath>
 #include <stdexcept>
 #include <cassert>
+#include<algorithm>
 
 namespace galaxymodel{
 
