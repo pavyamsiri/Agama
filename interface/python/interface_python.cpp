@@ -7839,7 +7839,8 @@ PyObject* orbit(PyObject* /*self*/, PyObject* args, PyObject* namedArgs)
     utils::CtrlBreakHandler cbrk;
 
     // finally, run the orbit integration
-    volatile npy_intp numCompleted = 0;
+    // volatile npy_intp numCompleted = 0;
+    npy_intp numCompleted = 0;
     std::string errorMessage;
     if(!fail) {
         // the GIL must be released when running an OpenMP-parallelized loop
