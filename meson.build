@@ -33,7 +33,11 @@ The build will attempt to find required and optional dependencies:
 
 subdir('src')
 subdir('py')
-subdir('exe')
+
+fs = import('fs')
+if fs.is_dir('exe') and fs.is_file('exe/meson.build')
+  subdir('exe')
+endif
 
 
 # Install various documentation files
