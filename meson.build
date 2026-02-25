@@ -3,7 +3,7 @@ project('agama', 'cpp',
   version: '1.0',
   license: ['GPL', 'MIT', 'BSD'],
   default_options: [
-    'cpp_std=c++26',
+    'cpp_std=c++23',
     'buildtype=release',
     'default_library=both',
     'warning_level=1'
