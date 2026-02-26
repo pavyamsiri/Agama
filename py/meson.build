@@ -1,25 +1,4 @@
-# Python and NumPy dependencies
-py_mod = import('python')
-
-# Try to find Python in common venv locations first
-venv_python = find_program(
-    '../.venv/bin/python',  # Relative to build dir
-    '.venv/bin/python',
-    'venv/bin/python',
-    '../.venv/Scripts/python.exe',  # Windows
-    required: false
-)
-
-if venv_python.found()
-    python = venv_python
-    message('Using venv Python: ' + venv_python.full_path())
-else
-    # Fall back to system Python
-    py_mod = import('python')
-    python = py_mod.find_installation('python3', required: true)
-endif
-
-# Now get the dependency
+python = import('python').find_installation(pure: false)
 python_dep = python.dependency()
 
 # Try to find numpy

@@ -2316,7 +2316,7 @@ Py_hash_t Density_hash(PyObject *self)
 {
     // use the smart pointer to the underlying C++ object, not the Python object itself,
     // to establish identity between two Python objects containing the same C++ class instance
-    return Py_HashPointer(const_cast<void*>(static_cast<const void*>(((DensityObject*)self)->dens.get())));
+    return _Py_HashPointer(const_cast<void*>(static_cast<const void*>(((DensityObject*)self)->dens.get())));
 }
 
 /// syntactic sugar: construct a composite density object by adding two density objects
@@ -4405,7 +4405,7 @@ Py_hash_t DistributionFunction_hash(PyObject *self)
 {
     // use the smart pointer to the underlying C++ object, not the Python object itself,
     // to establish identity between two Python objects containing the same C++ class instance
-    return Py_HashPointer(const_cast<void*>(static_cast<const void*>
+    return _Py_HashPointer(const_cast<void*>(static_cast<const void*>
         (((DistributionFunctionObject*)self)->df.get())));
 }
 
