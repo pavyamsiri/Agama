@@ -36,7 +36,9 @@ deps += gsl_dep
 omp_dep = dependency('openmp', required: false)
 if omp_dep.found()
   message('Compiling with OpenMP support')
-  common_args += ['-fopenmp']
+  if not is_macos
+    common_args += ['-fopenmp']
+  endif
   deps += omp_dep
 endif
 # Eigen dependency (optional)
