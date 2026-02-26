@@ -48,9 +48,3 @@ install_data(
 install_subdir('tests', install_dir: get_option('datadir') / 'agama')
 install_subdir('data', install_dir: get_option('datadir') / 'agama')
 install_subdir('doc', install_dir: get_option('datadir') / 'agama')
-# Install all type stubs
-install_subdir(
-  'stubs/agama',
-  install_dir: python.get_install_dir() / 'agama-stubs',
-  strip_directory: true
-)
