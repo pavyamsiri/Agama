@@ -54,6 +54,11 @@ double unwrapAngle(double x, double xprev);
     integer multiples of M_PI/2 correspond to exactly zero values of sine or cosine */
 void sincos(double x, double& s, double& c);
 
+/** arctangent function, faster than the one from standard library (result in the range +-M_PI/2) */
+double atan(double x);
+
+/** four-quadrant version of arctangent(y/x), faster than the one from standard library */
+double atan2(double y, double x);
 
 /** Perform a binary search in an array of sorted numbers x_0 < x_1 < ... < x_N
     to locate the index of bin that contains a given value x.
@@ -81,6 +86,23 @@ inline double hermiteInterp(double x, double x1, double x2,
     const double t = (x-x1) / (x2-x1);
     return pow_2(1-t) * ( (1+2*t) * y1 +   t   * dy1 * (x2-x1) )
          + pow_2(t)   * ( (3-2*t) * y2 + (t-1) * dy2 * (x2-x1) );
+}
+
+/** compute the coefficients c of a polynomial of degree N from its values at N+1 points:
+    P(x) = c_0 + c_1 x + c_2 x^2 + ... + c_N x^N;  P(x_i) = y_i, i=0..N
+    Adapted from the implementation of the algorithm of Bjorck & Pereyra (1970) by John Burkardt.
+    NB: the alternative version given in Numerical Recipes has *much* worse accuracy!
+*/
+inline void vandermonde(int N, /*input*/ const double x[], const double y[], /*output*/ double c[])
+{
+    for(int i=0; i<=N; i++)
+        c[i] = y[i];
+    for(int i=0; i<N; i++)
+        for(int j=N; j>i; j--)
+            c[j] = (c[j] - c[j-1]) / (x[j] - x[j-i-1]);
+    for(int i=N-1; i>=0; i--)
+        for(int j=i; j<N; j++)
+            c[j] -= x[i] * c[j+1];
 }
 
 

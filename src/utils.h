@@ -22,7 +22,8 @@ namespace utils {
 
 /// level of verbosity for logging messages
 enum VerbosityLevel {
-    VL_MESSAGE = 0,   ///< information messages that are always printed
+    VL_DISABLE = -1,  ///< same as the default setting, but suppress the progress indicator in Python
+    VL_MESSAGE = 0,   ///< information messages that are always printed (default)
     VL_WARNING = 1,   ///< important but non-critical warnings indicating possible problems
     VL_DEBUG   = 2,   ///< ordinary debugging messages
     VL_VERBOSE = 3,   ///< copious amount of debugging messages and various data written to text files
@@ -106,14 +107,11 @@ public:
 */
 std::vector<std::string> splitString(const std::string& src, const std::string& delim);
 
-/// check if a string ends with another string
-bool endsWithStr(const std::string& str, const std::string& end);
-
-/// compare two strings in a case-insensitive way
+/// compare two strings in a case-insensitive way (different specializations for cases
+/// when one or both arguments are either C-style NULL-terminated strings or std::string instances)
 bool stringsEqual(const std::string& str1, const std::string& str2);
-
-/// overloaded routine that compares two strings in a case-insensitive way
 bool stringsEqual(const std::string& str1, const char* str2);
+bool stringsEqual(const char* str1, const char* str2);
 
 
 /** convert a string to a number: initial whitespace is skipped,

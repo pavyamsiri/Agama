@@ -144,8 +144,10 @@ VerbosityLevel initVerbosityLevel()
         logfile.open(env);
     }
     env = std::getenv("LOGLEVEL");
-    if(env && env[0] >= '0' && env[0] <= '3')
+    if(env && env[0] >= '0' && env[0] <= '3' && env[1] == '\0')
         return static_cast<VerbosityLevel>(env[0]-'0');
+    if(env && env[0] == '-' && env[1] == '1' && env[2] == '\0')
+        return VL_DISABLE;
     return VL_MESSAGE;  // default
 }
 
@@ -215,20 +217,30 @@ std::vector<void(*)(int)> prevCtrlBreakHandler;
 
 CtrlBreakHandler::CtrlBreakHandler()
 {
-    // this class could be instantiated multiple times in nested routines,
-    // but the break flag is cleared only for the outermost one.
-    if(prevCtrlBreakHandler.empty())
-        ctrlBreakTriggered = false;
-    // store the previous signal handler on the stack, and set the new one
-    prevCtrlBreakHandler.push_back(signal(SIGINT, customCtrlBreakHandler));
+#ifdef _OPENMP
+#pragma omp critical(CtrlBreakHandler)
+#endif
+    {
+        // this class could be instantiated multiple times in nested routines,
+        // but the break flag is cleared only for the outermost one.
+        if(prevCtrlBreakHandler.empty())
+            ctrlBreakTriggered = false;
+        // store the previous signal handler on the stack, and set the new one (same for all threads)
+        prevCtrlBreakHandler.push_back(signal(SIGINT, customCtrlBreakHandler));
+    }
 }
 
 CtrlBreakHandler::~CtrlBreakHandler()
 {
-    // restore the previous handler once the instance of the class is destroyed
-    assert(!prevCtrlBreakHandler.empty());       // it must have been set in the constructor
-    signal(SIGINT, prevCtrlBreakHandler.back()); // restore the previous handler
-    prevCtrlBreakHandler.pop_back();             // and eliminate it from the stack
+#ifdef _OPENMP
+#pragma omp critical(CtrlBreakHandler)
+#endif
+    {
+        // restore the previous handler once the instance of the class is destroyed
+        assert(!prevCtrlBreakHandler.empty());       // it must have been set in the constructor
+        signal(SIGINT, prevCtrlBreakHandler.back()); // restore the previous handler
+        prevCtrlBreakHandler.pop_back();             // and eliminate it from the stack
+    }
 }
 
 bool CtrlBreakHandler::triggered() { return ctrlBreakTriggered; }
@@ -478,10 +490,7 @@ std::vector<std::string> splitString(const std::string& str, const std::string& 
     return result;
 }
 
-bool endsWithStr(const std::string& str, const std::string& end)
-{
-    return end.size()<=str.size() && str.find(end, str.size()-end.size())!=str.npos;
-}
+inline char tolower(char c) { return c>=65 && c<=90 ? c+32 : c; }  // ASCII characters only!
 
 bool stringsEqual(const std::string& str1, const std::string& str2)
 {
@@ -489,7 +498,7 @@ bool stringsEqual(const std::string& str1, const std::string& str2)
     if(len!=str2.size())
         return false;
     for(std::string::size_type i=0; i<len; i++)
-        if(tolower((unsigned char)str1[i]) != tolower((unsigned char)str2[i]))
+        if(tolower(str1[i]) != tolower(str2[i]))
             return false;
     return true;
 }
@@ -498,10 +507,24 @@ bool stringsEqual(const std::string& str1, const char* str2)
 {
     if(str2==NULL)
         return false;
-    for(std::string::size_type i=0; i<str1.size(); i++)
-        if(str2[i]==0 || tolower((unsigned char)str1[i]) != tolower((unsigned char)str2[i]))
+    std::string::size_type len=str1.size();
+    for(std::string::size_type i=0; i<len; i++)
+        if(str2[i]=='\0' || tolower(str1[i]) != tolower(str2[i]))
             return false;
-    return str2[str1.size()]==0;  // ensure that the 2nd string length is the same as the 1st
+    return str2[len]=='\0';  // ensure that the 2nd string length is the same as the 1st
+}
+
+bool stringsEqual(const char* str1, const char* str2)
+{
+    if(str1==NULL || str2==NULL)
+        return false;
+    for(size_t i=0; i<65536; i++) {
+        if(tolower(str1[i]) != tolower(str2[i]))
+            return false;  // this also happens when one string is shorter than the other
+        if(str1[i] == '\0')
+            return true;
+    }
+    return false;  // should not reach here
 }
 
 }  // namespace
