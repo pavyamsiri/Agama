@@ -63,73 +63,105 @@ inline double nan2num(double x) { return isFinite(x) ? x : 0; }
 /** Functions and classes for basic and advanced math operations */
 namespace math{
 
-/** Prototype of a function of one variable that may provide up to two derivatives.
+/** Prototype of a function of N>=1 variables that computes a vector of M>=1 values.
+    This is a root class in the hierarchy of mathematical functions:
+    IFunction narrows it down to a function of N=1 variable providing M=1 output value,
+    but extends it with the computation of up to 3 derivatives;
+    IFunctionNdimDeriv extends the general N>=1, M>=1 case to the computation of Jacobian;
+    IFunctionNdimAdd also extends it to the case when M>>1 and only a few of these values are nonzero.
+*/
+class IFunctionNdim {
+public:
+    virtual ~IFunctionNdim() {};
+
+    /** Evaluate the function.
+        \param[in]  vars   is the N-dimensional point at which the function should be computed.
+        \param[out] values is the M-dimensional array (possibly M=1) that will contain
+        the vector of function values. Should point to an existing array of length at least M.
+    */
+    virtual void eval(const double vars[], double values[]) const = 0;
+
+    /** Evaluate the function at several points in a single call.
+        The default implementation simply loops over input points and calls eval() on each of them,
+        but derived classes may provide an optimized version for P>1.
+        This vectorized evaluation is used, for instance, in the integration and sampling routines.
+        \param[in]  npoints is the number of input points (P).
+        \param[in]  vars  is the array of P N-dimensional points, where N=numVars():
+        d-th coordinate of p-th point is retrieved from vars[p * N + d], 0 <= d < N, 0 <= p < npoints.
+        \param[out] values is the array of P M-dimensional function values, where M=numValues():
+        v-th value at p-th point is stored in values[p * M + v], 0 <= v < M, 0 <= p < npoints.
+        Should point to an existing array of length (at least) M*P.
+    */
+    virtual void evalMany(const size_t npoints, const double vars[], double values[]) const
+    {
+        for(size_t p=0, N=numVars(), M=numValues(); p<npoints; p++)
+            eval(vars + p*N, values + p*M);
+    }
+
+    /** Return the dimensionality of the input point (N). */
+    virtual unsigned int numVars() const = 0;
+
+    /** Return the number of elements in the output array of values (M). */
+    virtual unsigned int numValues() const = 0;
+};
+
+/** Prototype of a function of one variable that may provide higher-order derivatives.
     This interface serves as the base for many mathematical routines throughout the code,
     some of them need only the value of the function, and some may need derivatives.
     However, not all classes implementing this interface are obliged to compute derivatives;
     the actual number of derivatives that can be produces is returned by a dedicated method 
     `numDerivs()`, which should be queried beforehand, and if necessary, the derivatives 
     must be estimated by the calling code itself from finite differences.
-    Descendant classes should implement `evalDeriv()` and `numDerivs()` methods, 
-    while `value()` and the `operator()` are simple shorthands provided by this base class.
-
-    Note on the naming conventions here and throughout the code:
-    `value(x)` stands for a member function returning a single number, where `x` may be 
-    one or more arguments; whereas `eval***(x, *val, ...)` stands for a member function with 
-    void return type, which computes something for the argument(s) `x` and stores the result(s)
-    in output arguments(s) `*val`, ..., which optionally may be NULL to indicate that 
-    the corresponding quantity needs not be computed.
+    Descendant classes should implement `evalDeriv()` and `numDerivs()` methods.
 */
-class IFunction {
+class IFunction: public IFunctionNdim {
 public:
     virtual ~IFunction() {};
 
     /** Compute any combination of function, first and second derivative;
         each one is computed if the corresponding output parameter is not NULL.
-        If the computation of a given derivative is not implemented, should return NaN. */
+        Calling code should not request more derivatives than guaranteed by numDerivs(),
+        but the method can return NaN for derivatives that cannot be computed at a given point. */
     virtual void evalDeriv(const double x,
         /*output*/ double* value=NULL, double* deriv=NULL, double* deriv2=NULL) const = 0;
 
     /** Return the number of derivatives implemented by this class. */
     virtual unsigned int numDerivs() const = 0;
 
-    /** Convenience shorthand for computing only the value of the function. */
-    virtual double value(const double x) const
+    /** narrow down the definition of IFunctionNdim: one input and one output value */
+#if __cplusplus >= 201103L
+    virtual unsigned int numVars()   const final { return 1; }
+    virtual unsigned int numValues() const final { return 1; }
+#else
+    virtual unsigned int numVars()   const { return 1; }
+    virtual unsigned int numValues() const { return 1; }
+#endif
+
+    /** Overloaded () operator enables to use derived classes as functors
+        (in this case, as functions of one input argument returning one value) */
+    double operator()(const double x) const
     {
         double val;
         evalDeriv(x, &val);
         return val;
     }
 
-    /** Overloaded () operator enables to use derived classes as functors
-        (in this case, as functions of one input argument returning one value) */
-    double operator()(const double x) const
+    /** implement the IFunctionNdim::eval interface */
+    virtual void eval(const double vars[], double values[]) const
     {
-        return value(x);
+        evalDeriv(*vars, values);
+    }
+
+    /** slightly optimized implementation of the vectorized call compared to the parent class,
+        avoiding an extra function call per evaluation */
+    virtual void evalMany(const size_t npoints, const double vars[], double values[]) const
+    {
+        for(size_t p=0; p<npoints; p++)
+            evalDeriv(vars[p], &values[p]);
     }
 };
 
-/** Prototype of a function that provides three derivatives, extending the previous one. */
-class IFunction3Deriv: public IFunction {
-public:
-
-    /** Evaluate the function and up to two derivatives at the given point. */
-    virtual void evalDeriv(const double x, double* val=NULL, double* der=NULL, double* der2=NULL) const
-    {
-        evalDeriv(x, val, der, der2, NULL);
-    }
-
-    /** Actual computation of the function and three derivatives needs to be implemented
-        in the derived classes; if any of the output pointers is NULL, the corresponding quantity
-        does not need to be computed. */
-    virtual void evalDeriv(const double x,
-        /*output*/ double* val, double* der, double* der2, double* der3) const = 0;
-
-    virtual unsigned int numDerivs() const { return 3; }
-};
-
-/** Prototype of a function that does not provide derivatives: 
-    it 'swaps' the requirements for implementing the virtual methods -
+/** Prototype of a function that does not provide derivatives:
     the descendant classes should only implement the method 'value()', 
     while the method 'evalDeriv()' redirects itself to 'value()'.
 */
@@ -150,8 +182,25 @@ public:
             *der2= NAN;
     }
 
+    /** same, but implementing the grandparent class interface without intermediate function calls */
+    virtual void eval(const double x[], double val[]) const
+    {
+        val[0] = value(x[0]);
+    }
+
+    /** again a slightly optimized implementation, avoiding intermediate function calls */
+    virtual void evalMany(const size_t npoints, const double vars[], double values[]) const
+    {
+        for(size_t p=0; p<npoints; p++)
+            values[p] = value(vars[p]);
+    }
+
     /** No derivatives, as one might guess. */
+#if __cplusplus >= 201103L
+    virtual unsigned int numDerivs() const final { return 0; }
+#else
     virtual unsigned int numDerivs() const { return 0; }
+#endif
 };
 
 /** Prototype for a definite integral of a function. */
@@ -163,41 +212,6 @@ public:
     virtual double integrate(double x1, double x2, int n=0) const = 0;
 };
 
-/** Prototype of a function of N>=1 variables that computes a vector of M>=1 values. */
-class IFunctionNdim {
-public:
-    virtual ~IFunctionNdim() {};
-
-    /** Evaluate the function.
-        \param[in]  vars   is the N-dimensional point at which the function should be computed.
-        \param[out] values is the M-dimensional array (possibly M=1) that will contain
-        the vector of function values. Should point to an existing array of length at least M.
-    */
-    virtual void eval(const double vars[], double values[]) const = 0;
-
-    /** Evaluate the function at several points in a single call.
-        The default implementation simply loops over input points and calls eval() on each of them,
-        but derived classes may provide an optimized version for P>1.
-        This method is called, for instance, by integrateNdim() and sampleNdim() routines.
-        \param[in]  npoints >= 1 is the number of input points (P).
-        \param[in]  vars  is the array of P N-dimensional points, where N=numVars():
-        d-th coordinate of p-th point is retrieved from vars[p * N + d], 0 <= d < N, 0 <= p < npoints.
-        \param[out] values is the array of P M-dimensional function values, where M=numValues():
-        v-th value at p-th point is stored in values[p * M + v], 0 <= v < M, 0 <= p < npoints.
-        Should point to an existing array of length (at least) M*P.
-    */
-    virtual void evalmany(const size_t npoints, const double vars[], double values[]) const
-    {
-        for(size_t p=0, N=numVars(), M=numValues(); p<npoints; p++)
-            eval(vars + p*N, values + p*M);
-    }
-
-    /** Return the dimensionality of the input point (N). */
-    virtual unsigned int numVars() const = 0;
-
-    /** Return the number of elements in the output array of values (M). */
-    virtual unsigned int numValues() const = 0;
-};
 
 /** Prototype of a function that has possibly M>>1 output values, of which only a small fraction
     could be nonzero at any point; it provides the interface for optimized accumulation of

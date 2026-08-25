@@ -13,16 +13,27 @@
 #include <malloc.h>
 #endif
 
+/** The integration in computeDensityProjection() methods can be implemented using
+    either fixed-order Gauss-Legendre schemes or the adaptive routine integrateNdim.
+    The former case has predictable cost, but unpredictable accuracy, which can get very bad
+    for density profiles that vary strongly within one grid segment.
+    The latter case, by contrast, tries to achieve (and usually far exceeds) the prescribed accuracy,
+    but a downside is that it does not produce exact result for spherically- or axisymmetric
+    density profiles; nevertheless, it is generally recommended.
+*/
+#define ADAPTIVE_INTEGRATION
+
 namespace galaxymodel{
 
 namespace{
 
-/// relative accuracy of computing density from DF
-static const double EPSREL_DENSITY_INT = 1e-3;
+/// relative accuracy of computing the projection of density onto basis functions
+static const double EPSREL_DENSITY_INT = 1e-4;
 
-/// max number of DF evaluations for computing density from DF
+/// max number of evaluations for integrating the density times basis functions in each cell
 static const unsigned int MAX_NUM_EVAL = 1e4;
 
+#ifndef ADAPTIVE_INTEGRATION
 /// order of Gauss-Legendre integration in radial (or vertical) directions for all schemes
 static const unsigned int GLORDER_RAD  = 8;
 
@@ -38,7 +49,7 @@ static const int LADD_SPHHARM = 6;
 
 /// eliminate spherical-harmonic or Fourier terms whose relative amplitude is less than this number
 static const double EPS_COEF = 1e-12;
-
+#endif
 
 // decode the index of the cell for TargetDensityClassic<0>,
 // or its four corners for TargetDensityClassic<1>
@@ -100,19 +111,364 @@ template<> inline void getCornerIndicesCylindrical<1>(
     induu = indlu + 1;
 }
 
+#ifdef ADAPTIVE_INTEGRATION
+
+/** Helper class for computing the projection of a density profile onto the basis functions
+    of a DensityClassic discretization scheme, integrating the product of the input density
+    times all nontrivial basis functions within one radial grid segment.
+*/
+template<int N>
+class DensityClassicIntegrand: public math::IFunctionNdim {
+    const potential::BaseDensity& density; ///< input density profile
+    const unsigned int stripsPerPane;
+    const double axisX, axisY, axisZ;      ///< flattening of the grid in each cartesian direction
+    const int indShell, indPane, ind1, ind2;
+    const double rlow, rupp;               ///< boundaries of the current radial grid segment
+public:
+    DensityClassicIntegrand(
+        const potential::BaseDensity& _density,
+        const unsigned int _stripsPerPane,
+        const std::vector<double> &gridr,
+        double _axisX, double _axisY, double _axisZ,
+        unsigned int indCell)
+    :
+        density(_density),
+        stripsPerPane(_stripsPerPane),
+        axisX(_axisX), axisY(_axisY), axisZ(_axisZ),
+        indShell(indCell / (3 * pow_2(stripsPerPane))),
+        indPane(indCell % (3 * pow_2(stripsPerPane)) / pow_2(stripsPerPane)),
+        ind1(indCell % pow_2(stripsPerPane) / stripsPerPane),
+        ind2(indCell % stripsPerPane),
+        rlow(indShell>0 ? gridr[indShell-1] : 0), rupp(gridr[indShell])
+    {}
+    virtual unsigned int numVars() const { return 3; }
+    virtual unsigned int numValues() const { return N==0 ? 1 : rlow==0 ? 5 : 8; }
+    virtual void eval(const double vars[], double values[]) const { evalMany(1, vars, values); }
+    virtual void evalMany(const size_t npoints, const double vars[], double values[]) const
+    {
+        if(npoints == 0)  // this should never happen, but silences an unjustified compiler warning
+            return;
+        // collect the density values at all points
+        coord::PosCar* points = static_cast<coord::PosCar*>(alloca(npoints * sizeof(coord::PosCar)));
+        double* jac = static_cast<double*>(alloca(npoints * sizeof(double)));
+        double prefact = 0.5*M_PI*M_PI / pow_2(stripsPerPane) * (rupp-rlow);
+        for(size_t i=0; i<npoints; i++) {
+            double r = rlow + vars[i*3] * (rupp - rlow);
+            double u = tan(M_PI/4 * (ind1 + vars[i*3+1]) / stripsPerPane);
+            double v = tan(M_PI/4 * (ind2 + vars[i*3+2]) / stripsPerPane);
+            double denom = 1. / sqrt(1 + pow_2(u) + pow_2(v));
+            double coord[3] = {r * denom, r * denom * u, r * denom * v};
+            points[i].x = coord[(3-indPane)%3] * axisX;
+            points[i].y = coord[(4-indPane)%3] * axisY;
+            points[i].z = coord[(5-indPane)%3] * axisZ;
+            jac[i] = prefact * r * r * (1 + u*u) * (1 + v*v) * pow_3(denom);
+        }
+        double* densval = static_cast<double*>(alloca(npoints * sizeof(double)));
+        density.evalManyDensityCar(npoints, points, densval);
+        for(size_t i=0, o=0; i<npoints; i++) {
+            double mult = jac[i] * densval[i];
+            if(N == 0) {  // entire cell is the single basis function
+                values[o++] = mult;
+            } else if(N == 1) {  // four corners of the 3d cell (at rupp)
+                values[o++] = mult * vars[i*3] * (1-vars[i*3+1]) * (1-vars[i*3+2]);
+                values[o++] = mult * vars[i*3] *    vars[i*3+1]  * (1-vars[i*3+2]);
+                values[o++] = mult * vars[i*3] * (1-vars[i*3+1]) *    vars[i*3+2];
+                values[o++] = mult * vars[i*3] *    vars[i*3+1]  *    vars[i*3+2];
+                if(rlow == 0) {  // fifth corner is a single node at origin
+                    values[o++] = mult * (1-vars[i*3]);
+                } else {  // four other corners of the 3d cell (at rlow)
+                    values[o++] = mult * (1-vars[i*3]) * (1-vars[i*3+1]) * (1-vars[i*3+2]);
+                    values[o++] = mult * (1-vars[i*3]) *    vars[i*3+1]  * (1-vars[i*3+2]);
+                    values[o++] = mult * (1-vars[i*3]) * (1-vars[i*3+1]) *    vars[i*3+2];
+                    values[o++] = mult * (1-vars[i*3]) *    vars[i*3+1]  *    vars[i*3+2];
+                }
+            } else
+                assert(!"TargetDensityClassic: unimplemented N");
+        }
+    }
+
+    /// compute the contributions of all nontrivial basis functions in the current grid segment
+    /// and add them to the `result` array of coefficients returned by computeDensityProjection
+    /// \param[in/out] result - add the contributions of integrals to this array
+    void run(std::vector<double>& result) const
+    {
+        double tmpresult[8];
+        double xlower[3] = {0, 0, 0}, xupper[3] = {1, 1, 1};
+        math::integrateNdim(*this, xlower, xupper, EPSREL_DENSITY_INT, MAX_NUM_EVAL, tmpresult);
+        int indll, indul, indlu, induu, valuesPerShell = 3 * stripsPerPane * (stripsPerPane + N) + N;
+        getCornerIndicesClassic<N>(indPane, ind1, ind2, stripsPerPane,
+            /*output*/indll, indul, indlu, induu);
+        if(N == 0) {
+            // one cell = one basis function, no overlap and no need for a critical section
+            result[indll + indShell * valuesPerShell] = tmpresult[0];
+        } else {
+            // when N==1, each coefficient has contributions from multiple cells,
+            // thus the accumulation step operating on a shared variable must be mutex-protected
+#ifdef _OPENMP
+#pragma omp critical
+#endif
+            {
+                result[indll + indShell * valuesPerShell + 1] += tmpresult[0];
+                result[indul + indShell * valuesPerShell + 1] += tmpresult[1];
+                result[indlu + indShell * valuesPerShell + 1] += tmpresult[2];
+                result[induu + indShell * valuesPerShell + 1] += tmpresult[3];
+                if(indShell == 0) {
+                    result[0] += tmpresult[4];
+                } else {
+                    result[indll + (indShell-1) * valuesPerShell + 1] += tmpresult[4];
+                    result[indul + (indShell-1) * valuesPerShell + 1] += tmpresult[5];
+                    result[indlu + (indShell-1) * valuesPerShell + 1] += tmpresult[6];
+                    result[induu + (indShell-1) * valuesPerShell + 1] += tmpresult[7];
+                }
+            }
+        }
+    }
+};
+
+/** Helper class for computing the projection of a density profile onto the basis functions
+    of a DensitySphHarm discretization scheme, integrating the product of the input density
+    times all nontrivial basis functions within one radial grid segment.
+*/
+class DensitySphHarmIntegrand: public math::IFunctionNdim {
+    const potential::BaseDensity& density; ///< input density profile
+    const int lmax, mmax;                  ///< order of angular expansion in theta and phi
+    const unsigned int angularCoefs;       ///< number of angular coefs at each radius
+    const unsigned int ndim;               ///< dimensions of integration (2 or 3)
+    const double axisX, axisY, axisZ;      ///< flattening of the grid in each cartesian direction
+    const double rlow, rupp;               ///< boundaries of the current radial grid segment
+    const size_t gridSize, gridIndex;      ///< size of the radial grid and index of this segment
+public:
+    DensitySphHarmIntegrand(
+        const potential::BaseDensity& _density,
+        int _lmax, int _mmax,
+        double _axisX, double _axisY, double _axisZ,
+        const std::vector<double> &gridr, unsigned int indexr)
+    :
+        density(_density),
+        lmax(_lmax), mmax(_mmax),
+        angularCoefs( (lmax/2+1) * (mmax/2+1) - mmax/2 * (mmax/2+1) / 2 ),
+        ndim(isZRotSymmetric(density) && _axisX==_axisY && mmax==0 ? 2 : 3),
+        axisX(_axisX), axisY(_axisY), axisZ(_axisZ),
+        rlow(indexr>0 ? gridr[indexr-1] : 0), rupp(gridr[indexr]),
+        gridSize(gridr.size()), gridIndex(indexr)
+    {}
+    virtual unsigned int numVars() const { return ndim; }
+    virtual unsigned int numValues() const { return rlow==0 ? angularCoefs + 1 : angularCoefs * 2; }
+    virtual void eval(const double vars[], double values[]) const { evalMany(1, vars, values); }
+    virtual void evalMany(const size_t npoints, const double vars[], double values[]) const
+    {
+        // collect the density values at all points
+        coord::PosCar* points = static_cast<coord::PosCar*>(alloca(npoints * sizeof(coord::PosCar)));
+        for(size_t i=0; i<npoints; i++) {
+            double r = rlow + vars[i*ndim] * (rupp - rlow);
+            double costh = vars[i*ndim+1], sinth = sqrt(1 - pow_2(costh));
+            double cosph = 1, sinph = 0;
+            if(ndim == 3)
+                math::sincos(M_PI*0.5 * vars[i*ndim+2], sinph, cosph);
+            points[i].x = r * sinth * cosph * axisX;
+            points[i].y = r * sinth * sinph * axisY;
+            points[i].z = r * costh * axisZ;
+        }
+        double* densval = static_cast<double*>(alloca(npoints * sizeof(double)));
+        density.evalManyDensityCar(npoints, points, densval);
+        // temporary array for storing the values of Legendre and trigonometric functions
+        double* leg  = static_cast<double*>(alloca((1 + lmax + mmax) * sizeof(double)));
+        double* trig = leg + lmax+1;
+        for(size_t i=0; i<npoints; i++) {
+            double r = rlow + vars[i*ndim] * (rupp - rlow);
+            double costh = vars[i*ndim+1], sinth = sqrt(1 - pow_2(costh)), tau = costh / (1 + sinth);
+            double mult = 4*M_PI * (rupp - rlow) * r * r * densval[i];
+            math::trigMultiAngle(ndim==3 ? M_PI*0.5 * vars[i*ndim+2] : 0, mmax, false, trig);
+            // storage scheme for the output:
+            // first `angularCoefs` elements contain the contributions of the integrals for C_{lm}
+            // at rupp, in the following order:
+            // (l=0,m=0), (l=2,m=0), ..., (l=lmax,m=0), (l=2,m=2), (l=4,m=2), ..., (l=lmax,m=mmax);
+            // then the remaining elements contain the same quantities at rlow,
+            // but if rlow=0, then only one term (l=0,m=0) is stored instead of all `angularCoefs`.
+            // This is different from the final storage order of all coefficients,
+            // which are reordered once all integrals are computed.
+            // In addition, since the integrals for higher-order terms in the sph-harm expansion
+            // can be very close to zero, it may be inefficient to evaluate them with the same
+            // relative precision as the main term. Therefore, for l>0 the stored values are
+            // actually C_{lm} + C_{00}, and the contribution of C_{00} is subtracted later.
+            double val0 = 0;  // C_{00}
+            for(int m=0, offset=i*numValues(); m<=mmax; m+=2) {
+                math::sphHarmArray(lmax, m, tau, leg);
+                for(int l=m; l<=lmax; l+=2, offset++) {
+                    double val = mult * leg[l-m] * 2*M_SQRTPI * (m==0 ? 1. : M_SQRT2 * trig[m-1]);
+                    values[offset] = (val + val0) * vars[i*ndim];  // contributions at rupp
+                    if(rlow>0 || l==0)
+                        values[offset + angularCoefs] = (val + val0) * (1 - vars[i*ndim]);  // rlow
+                    if(l==0)
+                        val0 = val;
+                }
+            }
+        }
+    }
+
+    /// compute the contributions of all nontrivial basis functions in the current grid segment
+    /// and add them to the `result` array of coefficients returned by computeDensityProjection
+    /// \param[in/out] result - add the contributions of integrals to this array
+    void run(std::vector<double>& result) const
+    {
+        double* tmpresult = static_cast<double*>(alloca(numValues() * sizeof(double)));
+        double xlower[3] = {0, 0, 0}, xupper[3] = {1, 1, 1};
+        math::integrateNdim(*this, xlower, xupper, EPSREL_DENSITY_INT, MAX_NUM_EVAL, tmpresult);
+        // The order of coefficients computed by the integration routine differs from their
+        // storage order in the result array: first `angularCoefs` values are contributions
+        // of integrals to coefficients at rupp (=gridr[ir]), remaining terms are the same quantities
+        // at rlow (=gridr[ir-1]); when ir=0, there is only one term (l=0,m=0), otherwise there
+        // are `angularCoefs` terms.
+        // A further complication is that the integrals for l>0 terms contain the contribution
+        // of the l=0 term (to avoid wasting time trying to compute them with high relative accuracy
+        // when the values are very close to zero), which needs to be subtracted.
+        // This accumulation step operates on a shared variable and thus must be mutex-protected.
+#ifdef _OPENMP
+#pragma omp critical
+#endif
+        {
+            for(unsigned int ia=0; ia<angularCoefs; ia++)
+                // contributions to coefs at rupp, subtracting the C_{00} term
+                result[gridIndex + 1 + ia * gridSize] += tmpresult[ia] - (ia>0) * tmpresult[0];
+            // contributions to C_{00} at rlow
+            result[gridIndex] += tmpresult[angularCoefs];
+            // contributions to higher-order coefs at rlow, subtracting C_{00}(rlow)
+            for(unsigned int ia=1; gridIndex>0 && ia<angularCoefs; ia++)
+                result[gridIndex + ia * gridSize] +=
+                    tmpresult[ia + angularCoefs] - tmpresult[angularCoefs];
+        }
+    }
+};
+
+/** Helper class for computing the projection of a density profile onto the basis functions
+    of a DensityCylindrical discretization scheme, integrating the product of the input density
+    times all nontrivial basis functions within one cell of the 2d meridional grid
+*/
+template<int N>
+class DensityCylindricalIntegrand: public math::IFunctionNdim {
+    const potential::BaseDensity& density; ///< input density profile
+    const int mmax;                        ///< order of Fourier expansion in phi
+    const unsigned int ndim;               ///< dimensions of integration (2 or 3)
+    const double Rlow, Rupp, zlow, zupp;   ///< boundaries of the current grid cell
+    const int gridRsize, gridzsize;
+    const int indR, indz;
+public:
+    DensityCylindricalIntegrand(
+        const potential::BaseDensity& _density,
+        int _mmax,
+        const std::vector<double> &gridR, const std::vector<double> &gridz,
+        unsigned int indexR, unsigned int indexz)
+    :
+        density(_density),
+        mmax(_mmax),
+        ndim(isZRotSymmetric(density) && mmax==0 ? 2 : 3),
+        Rlow(indexR>0 ? gridR[indexR-1] : 0), Rupp(gridR[indexR]),
+        zlow(indexz>0 ? gridz[indexz-1] : 0), zupp(gridz[indexz]),
+        gridRsize(gridR.size()), gridzsize(gridz.size()), indR(indexR), indz(indexz)
+    {}
+    virtual unsigned int numVars() const { return ndim; }
+    virtual unsigned int numValues() const {
+        return N==0 ?  1+mmax/2 :          // one basis function for each Fourier term in one grid cell
+            Rlow==0 ? (1+mmax/2) * 2 + 2 : // two functions per term at Rupp, plus two for m=0 at Rlow
+                      (1+mmax/2) * 4;      // four functions per term, bilinear form in {R,z}_{low,Rupp}
+    }
+    virtual void eval(const double vars[], double values[]) const { evalMany(1, vars, values); }
+    virtual void evalMany(const size_t npoints, const double vars[], double values[]) const
+    {
+        if(npoints == 0)  // this should never happen, but silences an unjustified compiler warning
+            return;
+        // collect the density values at all points
+        coord::PosCyl* points = static_cast<coord::PosCyl*>(alloca(npoints * sizeof(coord::PosCyl)));
+        for(size_t i=0; i<npoints; i++) {
+            points[i].R = Rlow + vars[i*ndim  ] * (Rupp-Rlow);
+            points[i].z = zlow + vars[i*ndim+1] * (zupp-zlow);
+            points[i].phi = ndim==3 ? 0.5*M_PI * vars[i*ndim+2] : 0;
+        }
+        double* densval = static_cast<double*>(alloca(npoints * sizeof(double)));
+        density.evalManyDensityCyl(npoints, points, densval);
+        // temporary array for storing the values of trigonometric functions
+        double* trig = static_cast<double*>(alloca(mmax * sizeof(double)));
+        for(size_t i=0, o=0; i<npoints; i++) {
+            math::trigMultiAngle(points[i].phi, mmax, false, trig);
+            double mult = 4*M_PI * (Rupp - Rlow) * (zupp - zlow) * points[i].R * densval[i];
+            if(N==0) {
+                values[o++] = mult;
+                // add the value of the m=0 term to all higher-m terms to speed up convergence
+                for(int m=2; m<=mmax; m+=2)
+                    values[o++] = mult * (1 + 2 * trig[m-1]);
+            } else if(N==1) {
+                // storage scheme for the N=1 case: for each input point, the output array elements are
+                // [0] - contribution of the m=0 harmonic to the basis function centered at (Rupp,zlow);
+                // [1] - m=0, (Rupp,zupp);
+                // [2] - m=2, (Rupp,zlow);
+                // [3] - m=2, (Rupp,zupp);
+                // continue for all even m values up to mmax;
+                // [2 * (mmax/2+1)    ] - m=0, (Rlow,zlow);
+                // [2 * (mmax/2+1) + 1] - m=0, (Rlow,zupp);
+                // remaining elements continue to higher m, but only if Rlow>0, otherwise end here.
+                // This is different from the final storage order of all coefficients,
+                // which are reordered once all integrals are computed.
+                // Moreover, the m=0 term (or four such terms at each corner of the grid when N=1)
+                // is added to all terms with m>0 to avoid wasting time in computing these m>0
+                // terms with high relative accuracy when their magnitude might be very small;
+                // the contribution of the m=0 term is subtracted at the end of the integration.
+                double offR = vars[i*ndim], offz = vars[i*ndim+1];
+                for(int m=0; m<=mmax; m+=2) {
+                    double val = mult * (m==0 ? 1 : 1 + 2 * trig[m-1]);
+                    values[o++] = val * offR * (1-offz);
+                    values[o++] = val * offR *    offz;
+                }
+                values[o++] = mult * (1-offR) * (1-offz);
+                values[o++] = mult * (1-offR) *    offz;
+                for(int m=2; Rlow>0 && m<=mmax; m+=2) {
+                    double val = mult * (1 + 2 * trig[m-1]);
+                    values[o++] = val * (1-offR) * (1-offz);
+                    values[o++] = val * (1-offR) *    offz;
+                }
+            } else
+                assert(!"TargetDensityCylindrical: unimplemented N");
+        }
+    }
+
+    /// compute the contributions of all nontrivial basis functions in the current grid segment
+    /// and add them to the `result` array of coefficients returned by computeDensityProjection
+    /// \param[in/out] result - add the contributions of integrals to this array
+    void run(std::vector<double>& result) const
+    {
+        double* tmpresult = static_cast<double*>(alloca(numValues() * sizeof(double)));
+        double xlower[3] = {0, 0, 0}, xupper[3] = {1, 1, 1};
+        math::integrateNdim(*this, xlower, xupper, EPSREL_DENSITY_INT, MAX_NUM_EVAL, tmpresult);
+        // Accumulate the coefficients, reordering them according to the output storage convention
+        // and undoing the addition of the m=0 terms to all higher-m terms.
+        // This accumulation step operates on a shared variable and thus must be mutex-protected.
+#ifdef _OPENMP
+#pragma omp critical
+#endif
+        {
+            for(int m=0; m<=mmax; m+=2) {
+                int indll, indul, indlu, induu;
+                getCornerIndicesCylindrical<N>(m, indR, indz, gridRsize, gridzsize,
+                    /*output*/ indll, indul, indlu, induu);
+                if(N==0) {
+                    result.at(indll) += m==0 ? tmpresult[0] : tmpresult[m / 2] - tmpresult[0];
+                } else {
+                    result.at(indul) += m==0 ? tmpresult[0] : tmpresult[m    ] - tmpresult[0];
+                    result.at(induu) += m==0 ? tmpresult[1] : tmpresult[m + 1] - tmpresult[1];
+                    if(m==0) {
+                        result.at(indll) += tmpresult[mmax + 2];
+                        result.at(indlu) += tmpresult[mmax + 3];
+                    } else if(indR>0) {
+                        result.at(indll) += tmpresult[mmax + 2 + m] - tmpresult[mmax + 2];
+                        result.at(indlu) += tmpresult[mmax + 3 + m] - tmpresult[mmax + 3];
+                    }   // otherwise there is no such term in the basis set
+                }
+            }
+        }
+    }
+};
+#endif
+
 } // internal ns
-
-
-void BaseTargetDensity::computeDFProjection(const GalaxyModel& model, StorageNumT* output) const
-{
-    // derived classes implement computeDensityProjection using vectorized collection of
-    // input density values at all points, and DensityFromDF internally OpenMP-parallelizes
-    // the computation over all input points, making it as efficient as it could be.
-    std::vector<double> result =
-        computeDensityProjection(DensityFromDF(model, EPSREL_DENSITY_INT, MAX_NUM_EVAL));
-    for(size_t i=0; i<result.size(); i++)
-        output[i] = static_cast<StorageNumT>(result[i]);
-}
 
 
 //----- Classic grid-based density representation -----//
@@ -215,7 +571,7 @@ std::vector<double> TargetDensityClassic<N>::computeDensityProjection(
 {
     if(!isTriaxial(density))
         throw std::runtime_error("TargetDensityClassic: input density should have triaxial symmetry");
-
+#ifndef ADAPTIVE_INTEGRATION
     const double *glnodesRad = math::GLPOINTS[GLORDER_RAD], *glweightsRad = math::GLWEIGHTS[GLORDER_RAD];
     const double *glnodesAng = math::GLPOINTS[GLORDER_ANG], *glweightsAng = math::GLWEIGHTS[GLORDER_ANG];
     // pre-compute nodes and weigths for all strips in the integration over angles
@@ -248,7 +604,7 @@ std::vector<double> TargetDensityClassic<N>::computeDensityProjection(
 
     // 2. collect density values at all points at once
     std::vector<double> densValues(pos.size());
-    density.evalmanyDensityCar(pos.size(), &pos.front(), &densValues.front());
+    density.evalManyDensityCar(pos.size(), &pos.front(), &densValues.front());
 
     // 3. convert these values into the array of cell masses
     for(unsigned int iR=0, ip=0; iR < gridr.size() * GLORDER_RAD; iR++) {
@@ -296,6 +652,17 @@ std::vector<double> TargetDensityClassic<N>::computeDensityProjection(
             }
         }
     }
+#else
+    std::vector<double> result(numValues());
+    int numCells = 3 * pow_2(stripsPerPane) * gridr.size();
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
+    for(int indCell=0; indCell<numCells; indCell++) {
+        DensityClassicIntegrand<N> fnc(density, stripsPerPane, gridr, axisX, axisY, axisZ, indCell);
+        fnc.run(result);
+    }
+#endif
     return result;
 }
 
@@ -420,7 +787,7 @@ std::vector<double> TargetDensitySphHarm::computeDensityProjection(
 {
     if(!isTriaxial(density))
         throw std::runtime_error("TargetDensitySphHarm: input density should have triaxial symmetry");
-
+#ifndef ADAPTIVE_INTEGRATION
     // the integration in radius follows the Gauss-Legendre rule
     const double *glnodesRad = math::GLPOINTS[GLORDER_RAD], *glweightsRad = math::GLWEIGHTS[GLORDER_RAD];
 
@@ -454,7 +821,7 @@ std::vector<double> TargetDensitySphHarm::computeDensityProjection(
 
     // 2. collect density values at all points at once
     std::vector<double> densValues(pos.size());
-    density.evalmanyDensityCar(pos.size(), &pos.front(), &densValues.front());
+    density.evalManyDensityCar(pos.size(), &pos.front(), &densValues.front());
 
     // 3. convert these values into the array of expansion coefficients
     std::vector<double> shcoefs(std::max<int>(ind.size(), pow_2(lmax+1)));
@@ -483,7 +850,21 @@ std::vector<double> TargetDensitySphHarm::computeDensityProjection(
             }
         }
     }
-
+#else
+    std::vector<double> result(numValues());
+    int lmax_tmp = isSpherical(density) && axisX==1 && axisY==1 ? 0 : lmax;
+    int mmax_tmp = isZRotSymmetric(density) && axisX==axisY ? 0 : mmax;
+    // loop over all segments of the radial grid, and in each segment,
+    // accumulate the contributions of integrals for all nontrivial coefficients in the `result` array
+    int size = gridr.size();
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
+    for(int ir=0; ir<size; ir++) {
+        DensitySphHarmIntegrand fnc(density, lmax_tmp, mmax_tmp, axisX, axisY, axisZ, gridr, ir);
+        fnc.run(result);
+    }
+#endif
     return result;
 }
 
@@ -574,7 +955,7 @@ std::vector<double> TargetDensityCylindrical<N>::computeDensityProjection(
 {
     if(!isTriaxial(density))
         throw std::runtime_error("TargetDensityCylindrical: input density should have triaxial symmetry");
-
+#ifndef ADAPTIVE_INTEGRATION
     // the integration in R and z follows the Gauss-Legendre rule
     const double *glnodesRad = math::GLPOINTS[GLORDER_RAD], *glweightsRad = math::GLWEIGHTS[GLORDER_RAD];
     // select a sufficiently high order of integration in angles
@@ -602,7 +983,7 @@ std::vector<double> TargetDensityCylindrical<N>::computeDensityProjection(
 
     // 2. collect density values at all points at once
     std::vector<double> densValues(pos.size());
-    density.evalmanyDensityCyl(pos.size(), &pos.front(), &densValues.front());
+    density.evalManyDensityCyl(pos.size(), &pos.front(), &densValues.front());
 
     // 3. convert these values into the array of Fourier coefficients
     std::vector<double> coefs(std::max<int>(trans.size(), mmax+1));  // temp.storage for transformed coefs
@@ -647,7 +1028,20 @@ std::vector<double> TargetDensityCylindrical<N>::computeDensityProjection(
             }
         }
     }
-
+#else
+    std::vector<double> result(numValues());
+    const int mmax_tmp = isZRotSymmetric(density) ? 0 : mmax;
+    // loop over all cells of the 2d grid in the meridional plane, and in each cell,
+    // accumulate the contributions of integrals for all nontrivial coefficients in the `result` array
+    const int sizeR = gridR.size(), size = gridz.size() * sizeR;
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
+    for(int i=0; i<size; i++) {
+        DensityCylindricalIntegrand<N> fnc(density, mmax_tmp, gridR, gridz, i % sizeR, i / sizeR);
+        fnc.run(result);
+    }
+#endif
     return result;
 }
 

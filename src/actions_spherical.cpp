@@ -112,7 +112,7 @@ public:
         potential(p), E(_E), L(_L), R1(_R1) {};
     virtual double value(const double r) const {
         // r cannot be zero because the integrand is never evaluated at endpoints of the interval
-        double Phi = potential.value(r);
+        double Phi = potential(r);
         double vr2 = 2*(E-Phi) - pow_2(L/r);
         if(vr2<=0 || !isFinite(vr2) || r==R1) return 0;
         double vr  = sqrt(vr2);
@@ -344,7 +344,7 @@ coord::PosVelCyl mapPointFromActionAngles(const ActionAngles &aa,
 /// as a function of E and L/Lcirc
 math::QuinticSpline2d createActionInterpolator(const potential::Interpolator2d& pot)
 {
-    const double invPhi0 = 1. / pot.value(0);
+    const double invPhi0 = 1. / pot(0.);
     std::vector<double> gridR = potential::createInterpolationGrid(
         potential::FunctionToPotentialWrapper(pot), ACCURACY_INTERP2);
     // extend the grid a little bit at large radii
@@ -441,7 +441,7 @@ math::QuinticSpline2d createActionInterpolator(const potential::Interpolator2d& 
 math::QuinticSpline2d createEnergyInterpolator(const potential::Interpolator2d& pot,
     const math::BaseInterpolator2d& intJr)
 {
-    const double Phi0 = pot.value(0), invPhi0 = 1. / Phi0;
+    const double Phi0 = pot(0.), invPhi0 = 1. / Phi0;
     std::vector<double> gridR = potential::createInterpolationGrid(
         potential::FunctionToPotentialWrapper(pot), ACCURACY_INTERP2);
     // extend the grid a little
@@ -479,7 +479,7 @@ math::QuinticSpline2d createEnergyInterpolator(const potential::Interpolator2d& 
                 // radius of a circular orbit with angular momentum equal to L
                 double Rcirc = iQ<sizeQ-1 ? pot.R_from_Lz(L) : Rc;
                 // initial guess (more precisely, lower bound) for Hamiltonian
-                double Elow  = pot.value(Rcirc) + (L>0 ? 0.5 * pow_2(L/Rcirc) : 0);
+                double Elow  = pot(Rcirc) + (L>0 ? 0.5 * pow_2(L/Rcirc) : 0);
                 double dEdX,X= scaleE(Elow, invPhi0, /*output*/ &dEdX);
                 double dEdJr = sqrt(d2Phi + 3*dPhi/Rc);  // kappa - epicyclic frequency (when Jr=0)
                 double dEdL  = sqrt(dPhi/Rc);            // Omega --"--
@@ -652,7 +652,7 @@ void ActionFinderSpherical::eval(const coord::PosVelCyl& point,
     Actions* act, Angles* ang, Frequencies* freq) const
 {
     Actions acts;
-    double E  = pot.value(sqrt(pow_2(point.R) + pow_2(point.z))) + 
+    double E  = pot(sqrt(pow_2(point.R) + pow_2(point.z))) + 
         0.5 * (pow_2(point.vR) + pow_2(point.vz) + pow_2(point.vphi));
     double Lz = point.R * point.vphi;
     double Lx2plusLy2 = pow_2(point.z * point.vphi) + pow_2(point.R * point.vz - point.z * point.vR);

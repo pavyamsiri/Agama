@@ -74,7 +74,7 @@ math::LogLogSpline createJeansSphModel(
     integr.back() = pnPot.f0 * pnDens.f0 * math::pow(gridr.back(), 2*beta) * powPot / (-1-power);
     // compute integrals over all radial intervals from outside in
     for(int i=npoints-2; i>=0; i--)
-        integr[i] = integr[i+1] + math::integrate(fnc, gridr[i], gridr[i+1], EPSINT);
+        integr[i] = integr[i+1] + math::integrateGK(fnc, gridr[i], gridr[i+1], EPSINT);
     // convert the integrals into the velocity dispersion at each radius
     for(int i=npoints-1; i>=0; i--) {
         double rho = dens(gridr[i]);

@@ -113,8 +113,8 @@ double difDens(const potential::BasePotential& pot, const potential::BaseDensity
     pot.eval(pos, NULL, &g0, &h0, time);
     double dh1 = (h0.dx2 + h0.dy2 + h0.dz2) / (4*M_PI);  // density from the Hessian
     double dp1 = pot.density(pos, time), dd1 = den.density(pos, time), dpm, ddm;
-    pot.evalmanyDensityCar(1, &pos, &dpm, time);
-    den.evalmanyDensityCar(1, &pos, &ddm, time);
+    pot.evalManyDensityCar(1, &pos, &dpm, time);
+    den.evalManyDensityCar(1, &pos, &ddm, time);
     return fmax(fmax(fabs(dp1/dd1-1), fabs(dp1/dh1-1)), fmax(fabs(dp1/dpm-1), fabs(dd1/ddm-1)));
 }
 
@@ -127,8 +127,8 @@ double difDens(const potential::BasePotential& pot, const potential::BaseDensity
     pot.eval(pos, NULL, &g0, &h0, time);
     double dh1 = (h0.dR2 + g0.dR / pos.R + h0.dz2 + h0.dphi2 / pow_2(pos.R)) / (4*M_PI);
     double dp1 = pot.density(pos, time), dd1 = den.density(pos, time), dpm, ddm;
-    pot.evalmanyDensityCyl(1, &pos, &dpm, time);
-    den.evalmanyDensityCyl(1, &pos, &ddm, time);
+    pot.evalManyDensityCyl(1, &pos, &dpm, time);
+    den.evalManyDensityCyl(1, &pos, &ddm, time);
     return fmax(fmax(fabs(dp1/dd1-1), fabs(dp1/dh1-1)), fmax(fabs(dp1/dpm-1), fabs(dd1/ddm-1)));
 }
 
@@ -143,8 +143,8 @@ double difDens(const potential::BasePotential& pot, const potential::BaseDensity
     double dh1 = (h0.dr2 + 2*g0.dr / pos.r +
         (h0.dtheta2 + g0.dtheta * cth / sth + h0.dphi2 / pow_2(sth) ) / pow_2(pos.r)) / (4*M_PI);
     double dp1 = pot.density(pos, time), dd1 = den.density(pos, time), dpm, ddm;
-    pot.evalmanyDensitySph(1, &pos, &dpm, time);
-    den.evalmanyDensitySph(1, &pos, &ddm, time);
+    pot.evalManyDensitySph(1, &pos, &dpm, time);
+    den.evalManyDensitySph(1, &pos, &ddm, time);
     return fmax(fmax(fabs(dp1/dd1-1), fabs(dp1/dh1-1)), fmax(fabs(dp1/dpm-1), fabs(dd1/ddm-1)));
 }
 

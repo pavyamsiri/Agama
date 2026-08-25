@@ -368,7 +368,7 @@ void Sampler::evalFncLoop(PointEnum firstPointIndex, PointEnum lastPointIndex)
         PointEnum pointIndex = firstPointIndex + b * blocksize;
         PointEnum npoints = std::min<PointEnum>(blocksize, lastPointIndex - pointIndex);
         try {
-            fnc.evalmany(npoints, &pointCoords[pointIndex * Ndim], &fncValues[pointIndex]);
+            fnc.evalMany(npoints, &pointCoords[pointIndex * Ndim], &fncValues[pointIndex]);
         }
         // guard against possible exceptions, since they must not leave the OpenMP parallel section
         catch(std::exception& e) {

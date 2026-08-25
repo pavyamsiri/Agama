@@ -21,23 +21,23 @@ CompositeDF::CompositeDF(const std::vector<PtrDistributionFunction> &_components
         throw std::invalid_argument("CompositeDF: List of DF components cannot be empty");
 }
 
-void CompositeDF::evalmany(
+void CompositeDF::evalMany(
     const size_t npoints, const actions::Actions J[], bool separate,
     /*output*/ double values[], DerivByActions derivs[]) const
 {
     // the "separate" flag indicates whether to store values for each component separately
     // or sum them up; each component produces a single value for each input point, even if
-    // this component itself is a composite DF, so the evalmany() method of each component
+    // this component itself is a composite DF, so the evalMany() method of each component
     // is always invoked with "separate=false"
     unsigned int ncomp = components.size();
     if(ncomp == 1) {
         // fast track: for a single DF component, it does not matter whether separate is true or false,
         // and we simply output a single value per input point
-        components[0]->evalmany(npoints, J, /*separate*/false, values, derivs);
+        components[0]->evalMany(npoints, J, /*separate*/false, values, derivs);
         return;
     }
 
-    // the idea is to loop over components and for each one to call the vectorized method (evalmany),
+    // the idea is to loop over components and for each one to call the vectorized method (evalMany),
     // computing the values of the given component for all input points at once,
     // but then we need to sum up values of all components at a given point (if separate is false)
     // or to reorder them so that all components for a given input point are stored contiguously,
@@ -56,7 +56,7 @@ void CompositeDF::evalmany(
         }
     }
     for(unsigned int c=0; c<ncomp; c++) {
-        components[c]->evalmany(npoints, J, /*separate*/ false, /*output*/ compval, compder);
+        components[c]->evalMany(npoints, J, /*separate*/ false, /*output*/ compval, compder);
         if(separate) {
             for(size_t p=0; p<npoints; p++)
                 values[p*ncomp+c] = compval[p];

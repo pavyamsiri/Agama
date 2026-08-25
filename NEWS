@@ -1,6 +1,10 @@
 This file lists the most important updates in Agama (in reverse chronological order);
 breaking changes in API are listed at the end.
 
+August 2026:
+Replaced the cubature library by S.Johnson by a fresh implementation of the same
+algorithm with some improvements.
+
 May 2026:
 Optimized integration of multiple orbits in Python and computation of Evolving
 BasisSet potentials.

@@ -11,17 +11,6 @@
 
 namespace galaxymodel{
 
-/** Base class for all density discretization schemes */
-class BaseTargetDensity: public BaseTarget {
-public:
-
-    /// for density targets, only the three coordinates are used, not velocities
-    virtual unsigned int numVars() const { return 3; }
-
-    /// compute the projection of a DF-based model onto the basis elements of the spatial grid
-    virtual void computeDFProjection(const GalaxyModel& model, StorageNumT* output) const;
-};
-
 
 /** Classical scheme for discretizing a spheroidal density.
     The space is divided into concentric shells in radius;
@@ -57,7 +46,7 @@ public:
     \tparam  N  is the degree of interpolating B-splines (0 or 1).
 */
 template<int N>
-class TargetDensityClassic: public BaseTargetDensity {
+class TargetDensityClassic: public BaseTarget {
     const unsigned int stripsPerPane;  ///< number of strips in each direction in one pane
     const unsigned int valuesPerShell; ///< number of basis functions in each spheroidal shell
     const std::vector<double> gridr;   ///< spheroidal radii of the shells
@@ -79,6 +68,7 @@ public:
         const double axisYtoX=1., const double axisZtoX=1.);
 
     virtual const char* name() const;
+
     virtual std::string coefName(unsigned int index) const;
 
     /// total number of basis functions
@@ -103,7 +93,7 @@ public:
     There are `valuesPerShell` angular basis functions for each node in the radial grid,
     plus a single function for r=0 (only the 0th harmonic is used).
 */
-class TargetDensitySphHarm: public BaseTargetDensity {
+class TargetDensitySphHarm: public BaseTarget {
     const int lmax, mmax;              ///< order of angular expansion in theta and phi
     const unsigned int angularCoefs;   ///< number of angular coefs at each radius
     const std::vector<double> gridr;   ///< grid in spherical radius
@@ -130,6 +120,7 @@ public:
         const double axisYtoX=1., const double axisZtoX=1.);
 
     virtual const char* name() const;
+
     virtual std::string coefName(unsigned int index) const;
 
     /// total number of basis functions
@@ -153,7 +144,7 @@ public:
     \tparam  N  is the degree of interpolating B-splines (0 or 1).
 */
 template<int N>
-class TargetDensityCylindrical: public BaseTargetDensity {
+class TargetDensityCylindrical: public BaseTarget {
     const int mmax;                    ///< order of angular expansion in azimuth (phi)
     const std::vector<double> gridR;   ///< grid in the cylindrical radius
     const std::vector<double> gridz;   ///< grid in the z direction
@@ -173,6 +164,7 @@ public:
         const std::vector<double>& gridR, const std::vector<double>& gridz);
 
     virtual const char* name() const;
+
     virtual std::string coefName(unsigned int index) const;
 
     /// total number of basis functions

@@ -84,20 +84,20 @@ public:
         \param[out] values - output array of length npoints that will be filled with density values;
         \param[in]  time (optional, default 0) - time at which the density is computed.
     */
-    virtual void evalmanyDensityCar(const size_t npoints, const coord::PosCar pos[],
+    virtual void evalManyDensityCar(const size_t npoints, const coord::PosCar pos[],
         /*output*/ double values[], /*input*/ double time=0) const
     {
         // default implementation just loops over input points one by one
         for(size_t p=0; p<npoints; p++)
             values[p] = densityCar(pos[p], time);
     }
-    virtual void evalmanyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
+    virtual void evalManyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
         /*output*/ double values[], /*input*/ double time=0) const
     {
         for(size_t p=0; p<npoints; p++)
             values[p] = densityCyl(pos[p], time);
     }
-    virtual void evalmanyDensitySph(const size_t npoints, const coord::PosSph pos[],
+    virtual void evalManyDensitySph(const size_t npoints, const coord::PosSph pos[],
         /*output*/ double values[], /*input*/ double time=0) const
     {
         for(size_t p=0; p<npoints; p++)
@@ -300,9 +300,6 @@ class BasePotentialSph: public BasePotential, coord::IScalarFunction<coord::Sph>
     Conversion into other coordinate systems is implemented in this class. */
 class BasePotentialSphericallySymmetric: public BasePotential, public math::IFunction{
 public:
-    using math::IFunction::value;
-    using BasePotential::value;
-
     virtual coord::SymmetryType symmetry() const { return coord::ST_SPHERICAL; }
 
     virtual void evalCar(const coord::PosCar &pos,
@@ -469,6 +466,7 @@ public:
             *der2 = hess.dR2;
     }
     virtual unsigned int numDerivs() const { return 2; }
+    using BasePotentialCyl::eval;
 };
 
 ///@}
@@ -528,11 +526,11 @@ public:
 
     /// evaluate the integrand for the density at one input point (scaled R,z,phi)
     virtual void eval(const double vars[], double values[]) const {
-        evalmany(1, vars, values);
+        evalMany(1, vars, values);
     }
 
     /// evaluate the integrand for many input points (scaled R,z,phi) at once
-    virtual void evalmany(const size_t npoints, const double vars[], double values[]) const;
+    virtual void evalMany(const size_t npoints, const double vars[], double values[]) const;
 
     /// dimensions of integration: only integrate in phi if density is not axisymmetric
     virtual unsigned int numVars() const { return axisym ? 2 : 3; }

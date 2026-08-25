@@ -207,7 +207,7 @@ template<>
 inline void collectValues(const BaseDensity& src, const std::vector<coord::PosCyl>& points,
     /*output*/ double values[])
 {
-    src.evalmanyDensityCyl(points.size(), &points[0], values);   // vectorized evaluation at all points
+    src.evalManyDensityCyl(points.size(), &points[0], values);   // vectorized evaluation at all points
 }
 
 template<>
@@ -1302,7 +1302,7 @@ void DensitySphericalHarmonic::getCoefsAtRadius(double r, double coefs[]) const
     double rmin = gridRadii.front(), rmax = gridRadii.back();
     double logr = log(math::clip(r, rmin, rmax));  // the argument of spline functions
     // first compute the l=0 coefficient, possibly log-unscaled
-    double coef0 = spl[0]->value(logr);
+    double coef0 = (*spl[0])(logr);
     if(logScaling)
         coef0 = exp(coef0);
     // extrapolate if necessary
@@ -1320,7 +1320,7 @@ void DensitySphericalHarmonic::getCoefsAtRadius(double r, double coefs[]) const
             if(c==0)
                 continue;
             if(r >= rmin && r <= rmax) {
-                coefs[c] = spl[c]->value(logr) * coef0;
+                coefs[c] = (*spl[c])(logr) * coef0;
             } else {
                 // extrapolate beyond the grid towards small or large radii
                 double val, der;

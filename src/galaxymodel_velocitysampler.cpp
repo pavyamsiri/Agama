@@ -63,7 +63,7 @@ particles::ParticleArrayCar assignVelocityJeansSph(
         const coord::PosCyl& point = pointCoords.point(i);
         math::PRNGState state = math::hash(/*position is the source of randomness*/ &point, 3, /*seed*/ i);
         double r = hypot(point.R, point.z);
-        double sigma_r = jeansSphModel.value(r);
+        double sigma_r = jeansSphModel(r);
         double sigma_t = sigma_r * sqrt(2-2*beta);  // vel.disp. in two tangential directions combined
         double Phi = pot.value(point);
         double vr, vt;

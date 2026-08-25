@@ -56,22 +56,19 @@ void NFW::evalDeriv(double r,
     double* potential, double* deriv, double* deriv2) const
 {
     double rrel = r / scaleRadius;
-    double ln_over_r = r==INFINITY ? 0 :
-        rrel > 0.016 ? log(1 + rrel) / r :
-        // accurate (14 digits) asymptotic Pade(2,3) expansion at r->0
-        (1 + rrel * (1 + 11./60 * rrel)) / (1 + rrel * (1.5 + rrel * (0.6 + rrel * 0.05))) / scaleRadius;
+    double ln_over_r = r==INFINITY ? 0 : r==0 ? 1/scaleRadius : log1p(rrel) / r;
     if(potential)
         *potential = -mass * ln_over_r;
     if(deriv)
-        *deriv = mass * (rrel > 0.013 ?
+        *deriv = mass * (rrel > 0.008 ?
             (ln_over_r - 1/(r+scaleRadius)) / r :
-            // accurate (12 digits) asymptotic Pade(1,3) expansion at r->0
+            // accurate (13 digits) asymptotic Pade(1,3) expansion at r->0
             (0.5 + 17./96 * rrel) / (1 + rrel * (27./16 + rrel * (0.75 + 11./160 * rrel))) /
             pow_2(scaleRadius));
     if(deriv2)
-        *deriv2 = -mass * (rrel > 0.010 ?
+        *deriv2 = -mass * (rrel > 0.006 ?
             (2*ln_over_r - (2*scaleRadius + 3*r) / pow_2(scaleRadius+r) ) / pow_2(r) :
-            // accurate (10 digits) asymptotic Pade(2,3) expansion at r->0
+            // accurate (11 digits) asymptotic Pade(0,3) expansion at r->0
             1 / (1.5 + rrel * (27./8 + rrel * (351./160 + 183./640 * rrel))) / pow_3(scaleRadius) );
 }
 

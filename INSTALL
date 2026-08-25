@@ -86,9 +86,6 @@ In the manual mode, follow these steps:
     not its python interface (which could be installed separately from pip), and moreover prefer
     a customized fork of the code hosted at
     http://github.com/GalacticDynamics-Oxford/unsio
-    - Cuba library for multidimensional integration (the alternative, which is actually preferred,
-    is the Cubature library that is bundled with this distribution):
-    http://www.feynarts.de/cuba/
     Note: since Agama is compiled to a shared library, any external libraries to be statically
     linked with it need to be compiled with -fPIC flag.
 2.  You need to create a file called Makefile.local, which is included by the Makefile

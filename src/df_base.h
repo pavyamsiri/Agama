@@ -70,7 +70,7 @@ public:
         filled with DF derivatives in the same order as values (i.e., npoints if separate=false,
         or npoints * numValues if separate=true).
     */
-    virtual void evalmany(const size_t npoints, const actions::Actions J[],
+    virtual void evalMany(const size_t npoints, const actions::Actions J[],
         bool /*separate*/, double values[], DerivByActions derivs[]=NULL) const
     {
         // default implementation for a single-component DF does not make a distinction between

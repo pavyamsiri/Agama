@@ -16,30 +16,26 @@ namespace galaxymodel{
 /// numerical type for storing the matrix elements (choose float to save memory)
 typedef float StorageNumT;
 
-struct GalaxyModel;  // forward declaration
-
-/** A Target object represents any possible constraint in the model.
+/** A Target object represents an abstract discretization scheme for some constraints in the model.
     These could come from the self-consistency requirements for the density/potential pair,
     or from various kinematic requirements, velocity profiles, etc.
-    A target consists of an array of required values for the constraints,
-    an array of penalties for their violation (often related to measurement errors),
-    and two methods for computing these constraints for a given galaxy model.
-    The first one deals with orbit-based models, and returns an orbit runtime function
-    that computes the values of these constraints for each orbit as it is being integrated.
-    The second one deals with models based on a single- or multicomponent distribution function,
-    and returns an array of values for each component of the DF.
+    Instances of derived classes need to implement two methods:
+    addPoint() accumulates the values of constraints one point at a time,
+    and can be called during orbit integration or for each particle in an N-body snapshot;
+    it stores intermediate results in an external temporary array (datacube),
+    which is then converted to the final output array by finalizeDatacube().
+    computeDensityProjection() computes the values of all constraints for a given density profile.
+    Instances of Target*** do not hold any data by itself, but only specify the discretization scheme.
 */
-class BaseTarget: public math::IFunctionNdimAdd {
+class BaseTarget {
 public:
+    virtual ~BaseTarget() {}
 
     /// human-readable name of this target object
     virtual const char* name() const = 0;
 
     /// textual representation of a given coefficient (must be in the range 0 <= index < numCoefs() )
     virtual std::string coefName(unsigned int index) const = 0;
-
-    /// argument of addPoint() is a 6d point in the cartesian position/velocity space
-    virtual unsigned int numVars() const { return 6; }
 
     /// number of values recorded internally for each element of the additive model
     /// (orbit or DF component), i.e., is the size of the intermediate datacube;
@@ -55,7 +51,7 @@ public:
         return math::Matrix<double>(1, numValues(), 0.);
     }
 
-    /** convert the intermediate datacube into array of output coefficients;
+    /** convert the intermediate datacube into array of output coefficients.
         \param[in] datacube  is the matrix allocated by newDatacube() and filled by repeated calls
         to addPoint();
         it is allowed to be modified inside this routine, but is supposed to be discarded afterwards.
@@ -70,22 +66,12 @@ public:
             output[i] = static_cast<StorageNumT>(data[i]);
     }
 
-    /** the following method from IFunctionNdimAdd must be implemented in descendant classes:
-        accumulate the contribution of the given point to the internal datacube, weighted with 'mult';
+    /** accumulate the contribution of the given point to the internal datacube, weighted with 'mult'.
         \param[in]  point is the position and (optionally) velocity in cartesian coordinates;
         \param[in]  mult  is the weigth of the point in the output datacube;
         \param[in,out] datacube must point to an array of length numValues(), allocated by newDatacube()
     */
     virtual void addPoint(const double point[], const double mult, double datacube[]) const = 0;
-
-    /** compute target-specific data (projection of a DF); NOT YET IMPLEMENTED!
-        \param[in] model  is the interface for computing the value(s) of a distribution function,
-        possibly a multi-component DF
-        \param[out] output is a pointer to the array where the DF projection will be stored:
-        each DF component produces a contiguous array of numCoefs() output values;
-        should be an existing chunk of memory with size numCoefs() * df.numValues()
-    */
-    virtual void computeDFProjection(const GalaxyModel& model, StorageNumT* output) const = 0;
 
     /// compute the projections of the density onto all basis elements of the grid
     virtual std::vector<double> computeDensityProjection(const potential::BaseDensity& density) const = 0;
@@ -94,7 +80,7 @@ public:
 typedef shared_ptr<const BaseTarget> PtrTarget;
 
 
-/// Orbit runtime function that collects the values of a given N-dimensional function
+/// Orbit runtime function that collects the values of a given Target class
 /// for each point on the trajectory, weighted by the amount of time spent at this point
 class RuntimeFncTarget: public orbit::BaseRuntimeFnc {
 

@@ -3,9 +3,6 @@ under the GNU GPL license.
 However, the original source code of Agama itself is not subject to GPL
 and is provided under the less restrictive BSD or MIT licenses.
 The library also includes fragments of the following third-party codes:
-Cubature by Steven G. Johnson, available under GPL3
-(alternatively it can be compiled using the Cuba library by T. Hahn,
-which is distributed under LGPL);
 a somewhat modified version of TorusMapper by P. McMillan, distributed
 under MIT license (we do not include the GalPot part of the original code);
 a heavily modified version of DOP853 by E. Hairer, which is available under

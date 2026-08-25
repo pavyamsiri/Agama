@@ -1,5 +1,6 @@
 #include "math_core.h"
-#include "math_glquadrature.h"
+#include "math_cubature.h"
+#include "math_quadrature.h"
 #include "math_specfunc.h"
 #include "utils.h"
 #include <gsl/gsl_errno.h>
@@ -18,12 +19,6 @@
 
 #if !defined(GSL_MAJOR_VERSION) || (GSL_MAJOR_VERSION == 1) && (GSL_MINOR_VERSION < 15)
 #error "GSL version is too old (need at least 1.15)"
-#endif
-
-#ifdef HAVE_CUBA
-#include <cuba.h>
-#else
-#include "cubature.h"
 #endif
 
 namespace math{
@@ -70,7 +65,7 @@ static void GSLerrorHandler(const char *reason, const char* file, int line, int 
 #ifdef _OPENMP
 #pragma omp critical
 #endif
-        exceptionText = text;
+    exceptionText = text;
 }
 
 // a hacky way to initialize our error handler on module startup
@@ -94,7 +89,7 @@ std::terminate_handler terminate_handler = std::set_terminate(my_terminate_handl
 double functionWrapper(double x, void* param)
 {
     try{
-        return static_cast<IFunction*>(param)->value(x);
+        return (*static_cast<IFunction*>(param))(x);
     }
     catch(std::exception& e){
         exceptionFlag = true;
@@ -571,7 +566,7 @@ double Gaussian::integrate(double x1, double x2, int n) const
     if(n == 1) {
         double y1sq = y1*y1, y2sq = y2*y2;
         return 1 / (M_SQRTPI * M_SQRT2) * sigma * ( (y1sq >= 1 || y2sq >= 1) ?
-            exp(  -0.5 * y1sq) - exp  (-0.5 * y2sq) :
+            exp  (-0.5 * y1sq) - exp  (-0.5 * y2sq) :
             expm1(-0.5 * y1sq) - expm1(-0.5 * y2sq) );  // avoid roundoff when both y1,y2 are small
     }
     // general case
@@ -1198,7 +1193,7 @@ void findAsymptote(double x1, double x2, double x3, double f1, double f2, double
 
 // ------- integration routines ------- //
 
-double integrate(const IFunction& fnc, double x1, double x2, double reltoler, 
+double integrateGK(const IFunction& fnc, double x1, double x2, double reltoler, 
     double* error, int* numEval)
 {
     if(x1==x2)
@@ -1213,6 +1208,80 @@ double integrate(const IFunction& fnc, double x1, double x2, double reltoler,
     if(numEval!=NULL)
         *numEval = neval;
     return result;
+
+    double y1 = x1 * 0.5, y2 = x2 * 0.5, dy = y2 - y1;
+
+    // first iteration: use a 10/21-point Gauss-Kronrod rule
+    const int NGK21   = 21;
+    double* points21  = (double*) alloca(NGK21 * sizeof(double));  // scaled points (stack-allocated)
+    double* values21  = (double*) alloca(NGK21 * sizeof(double));  // function values at these points
+    points21[NGK21/2] = y1 + y2;
+    for(int i=0; i<NGK21/2; i++) {
+        points21[        i] = y1 * (1 + GKPOINTS87[i*4+3]) + y2 * (1 - GKPOINTS87[i*4+3]);
+        points21[NGK21-1-i] = y1 * (1 - GKPOINTS87[i*4+3]) + y2 * (1 + GKPOINTS87[i*4+3]);
+    }
+    // vectorized evaluation of function at all points
+    fnc.evalMany(NGK21, points21, values21);
+    // compute two estimates of the integral: 10-point Gauss rule and 21-point Kronrod rule
+    double result10 = 0, result21 = values21[NGK21/2] * GKWEIGHTS21[NGK21/2];
+    for(int i=0; i<NGK21/4; i++)
+        result10 += GKWEIGHTS10[i] * (values21[i*2+1] + values21[NGK21-2-i*2]);
+    for(int i=0; i<NGK21/2; i++)
+        result21 += GKWEIGHTS21[i] * (values21[i] + values21[NGK21-1-i]);
+    // check for convergence
+    double err = fabs(result21 - result10);
+    if(err <= fabs(result21) * reltoler) {
+        if(error)
+            *error = err * dy;
+        if(numEval)
+            *numEval = NGK21;
+        return result21 * dy;
+    }
+
+    // second iteration: extend the rule to 43 points by adding another 22
+    const int NGK43  = 43;
+    double* points22 = (double*) alloca((NGK43-NGK21) * sizeof(double));  // additional points
+    double* values22 = (double*) alloca((NGK43-NGK21) * sizeof(double));  // corresponding values
+    for(int i=0; i<(NGK43-NGK21)/2; i++) {
+        points22[              i] = y1 * (1 + GKPOINTS87[i*4+1]) + y2 * (1 - GKPOINTS87[i*4+1]);
+        points22[NGK43-NGK21-1-i] = y1 * (1 - GKPOINTS87[i*4+1]) + y2 * (1 + GKPOINTS87[i*4+1]);
+    }
+    fnc.evalMany(NGK43-NGK21, points22, values22);
+    double result43 = values21[NGK21/2] * GKWEIGHTS43[NGK43/2];
+    for(int i=0; i<NGK21/2; i++)
+        result43 += GKWEIGHTS43[i*2+1] * (values21[i] + values21[NGK21-1-i]);
+    for(int i=0; i<(NGK43-NGK21)/2; i++)
+        result43 += GKWEIGHTS43[i*2  ] * (values22[i] + values22[NGK43-NGK21-1-i]);
+    err = fabs(result43 - result21);
+    if(err <= fabs(result43) * reltoler) {
+        if(error)
+            *error = err * dy;
+        if(numEval)
+            *numEval = NGK43;
+        return result43 * dy;
+    }
+
+    // third (and last) iteration: extend the rule to 87 points by adding another 44
+    const int NGK87  = 87;
+    double* points44 = (double*) alloca((NGK87-NGK43) * sizeof(double));  // additional points
+    double* values44 = (double*) alloca((NGK87-NGK43) * sizeof(double));  // corresponding values
+    for(int i=0; i<(NGK87-NGK43)/2; i++) {
+        points44[              i] = y1 * (1 + GKPOINTS87[i*2]) + y2 * (1 - GKPOINTS87[i*2]);
+        points44[NGK87-NGK43-1-i] = y1 * (1 - GKPOINTS87[i*2]) + y2 * (1 + GKPOINTS87[i*2]);
+    }
+    fnc.evalMany(NGK87-NGK43, points44, values44);
+    double result87 = values21[NGK21/2] * GKWEIGHTS87[NGK87/2];
+    for(int i=0; i<NGK21/2; i++)
+        result87 += GKWEIGHTS87[i*4+3] * (values21[i] + values21[NGK21-1-i]);
+    for(int i=0; i<(NGK43-NGK21)/2; i++)
+        result87 += GKWEIGHTS87[i*4+1] * (values22[i] + values22[NGK43-NGK21-1-i]);
+    for(int i=0; i<(NGK87-NGK43)/2; i++)
+        result87 += GKWEIGHTS87[i*2  ] * (values44[i] + values44[NGK87-NGK43-1-i]);
+    if(error)
+        *error = fabs(result87 - result43) * dy;
+    if(numEval)
+        *numEval = NGK87;
+    return result87 * dy;
 }
 
 double integrateAdaptive(const IFunction& fnc, double x1, double x2, double reltoler, 
@@ -1238,23 +1307,6 @@ double integrateAdaptive(const IFunction& fnc, double x1, double x2, double relt
 }
 
 // this routine is intended to be fast, so only works with pre-computed integration tables
-double integrateGL(const IFunction& fnc, double x1, double x2, int N)
-{
-    if(N < 1 || N > MAX_GL_ORDER)
-        throw std::invalid_argument("integrateGL: order is too high (not implemented)");
-    if(x1==x2)
-        return 0;
-    // use pre-computed tables of points and weights (they are not available for every N,
-    // so take the closest implemented one with at least the requested number of points)
-    while(GLPOINTS[N] == NULL) N++;
-    const double *points = GLPOINTS[N], *weights = GLWEIGHTS[N];
-    double result = 0;
-    for(int i=0; i<N; i++)
-        result += weights[i] * fnc(x2 * points[i] + x1 * (1-points[i]));
-    return result * (x2-x1);
-}
-
-// a variant of the same routine for computing several integrals simultaneously on the same interval
 void integrateGL(const IFunctionNdim& fnc, double x1, double x2, int N, double result[])
 {
     if(fnc.numVars() != 1)
@@ -1276,7 +1328,7 @@ void integrateGL(const IFunctionNdim& fnc, double x1, double x2, int N, double r
     for(int i=0; i<N; i++)
         scpoints[i] = x2 * points[i] + x1 * (1-points[i]);
     // vectorized evaluation of function at all points
-    fnc.evalmany(N, scpoints, values);
+    fnc.evalMany(N, scpoints, values);
     for(int i=0; i<N; i++) {
         for(int k=0; k<M; k++)
             result[k] += weights[i] * (x2-x1) * values[i * M + k];
@@ -1332,147 +1384,10 @@ void prepareIntegrationTableGL(double x1, double x2, int N, double* nodes, doubl
     }
 }
 
-
-// ------- multidimensional integration ------- //
-namespace {
-#ifdef HAVE_CUBA
-#warning "Cuba is not recommended, use the built-in Cubature library instead"
-// wrapper for the Cuba library
-struct CubaParams {
-    const IFunctionNdim& F; ///< the original function
-    int numVars, numValues; ///< number of input and output dimensions
-    const double* xlower;   ///< lower limits of integration
-    const double* xupper;   ///< upper limits of integration
-    std::string error;      ///< store error message in case of exception
-    CubaParams(const IFunctionNdim& _F, const double* _xlower, const double* _xupper) :
-        F(_F), numVars(F.numVars()), numValues(F.numValues()), xlower(_xlower), xupper(_xupper) {}
-};
-
-int integrandNdimWrapperCuba(const int *ndim, const double xscaled[],
-    const int *fdim, double fval[], void *v_param, const int *npoints)
+void integrateNdim(const IFunctionNdim& F, const double xlower[], const double xupper[],
+    const double relToler, const int maxNumEval, double result[], double error[], int* numEval)
 {
-    CubaParams* param = static_cast<CubaParams*>(v_param);
-    assert(*ndim == param->numVars && *fdim == param->numValues);
-    try {
-        // un-scale the input point(s) from [0:1]^N to the original range:
-        // allocate a temporary array for un-scaled values on the stack (no need to free it)
-        double* xval = (double*) alloca( (*ndim) * (*npoints) * sizeof(double));
-        for(int i=0; i<*npoints; i++) {
-            for(int d=0, s=(*ndim)*i; d< *ndim; d++, s++)
-                xval[s] = param->xlower[d] * (1-xscaled[s]) + param->xupper[d] * xscaled[s];
-        }
-        param->F.evalmany(*npoints, xval, fval);
-        // check if the result is not finite (not performed unless in debug mode)
-        if(utils::verbosityLevel >= utils::VL_WARNING) {
-            for(int i=0; i< *npoints; i++)
-                for(int f=0; f< *fdim; f++)
-                    if(!isFinite(fval[f + (*fdim)*i])) {
-                        param->error = "integrateNdim: invalid function value encountered at";
-                        for(int d=0; d< *ndim; d++)
-                            param->error += ' ' + utils::toString(xval[d + (*ndim)*i], 15);
-                        param->error += '\n' + utils::stacktrace();
-                        return -1;
-                    }
-        }
-        return 0;   // success
-    }
-    catch(std::exception& e) {
-        param->error = std::string("integrateNdim: ") + e.what() + '\n' + utils::stacktrace();
-        return -999;  // signal of error
-    }
-}
-
-#else
-// wrapper for the Cubature library
-struct CubatureParams {
-    const IFunctionNdim& F; ///< the original function
-    int numVars, numValues; ///< number of input and output dimensions
-    int numEval;            ///< count the number of function evaluations
-    std::string error;      ///< store error message in case of exception
-    explicit CubatureParams(const IFunctionNdim& _F) :
-        F(_F), numVars(F.numVars()), numValues(F.numValues()), numEval(0) {}
-};
-
-int integrandNdimWrapperCubature(unsigned int ndim, unsigned int npoints, const double *xval,
-    void *v_param, unsigned int fdim, double *fval)
-{
-    CubatureParams* param = static_cast<CubatureParams*>(v_param);
-    assert((int)ndim == param->numVars && (int)fdim == param->numValues);
-    try {
-        param->F.evalmany(npoints, xval, fval);
-        param->numEval += npoints;
-        // check if the result is not finite (only performed in debug mode)
-        if(utils::verbosityLevel >= utils::VL_WARNING) {
-            for(unsigned int i=0; i<npoints; i++)
-                for(unsigned int f=0; f<fdim; f++)
-                    if(!isFinite(fval[f + i*fdim])) {
-                        param->error = "integrateNdim: invalid function value encountered at";
-                        for(unsigned int d=0; d<ndim; d++)
-                            param->error += ' ' + utils::toString(xval[d + i*ndim], 15);
-                        param->error += '\n' + utils::stacktrace();
-                        return -1;
-                    }
-        }
-        return 0;   // success
-    }
-    catch(std::exception& e) {
-        param->error = std::string("integrateNdim: ") + e.what() + '\n' + utils::stacktrace();
-        return -1;  // signal of error
-    }
-}
-#endif
-}  // namespace
-
-void integrateNdim(const IFunctionNdim& F, const double xlower[], const double xupper[], 
-    const double relToler, const unsigned int maxNumEval, 
-    double result[], double outError[], int* numEval)
-{
-    const unsigned int numVars = F.numVars();
-    const unsigned int numValues = F.numValues();
-    if(numVars==0)
-        throw std::runtime_error("integrateNdim: number of dimensions must be positive");
-    if(numVars>10)
-        throw std::runtime_error("integrateNdim: more than 10 dimensions is not supported");
-    const double absToler = 0;  // the only possible way to stay invariant under scaling transformations
-    // storage for errors: in the case that user doesn't need them, allocate a temp.array on the stack,
-    // which will be automatically freed on exit (NOTE: this assumes that numValues is not too large!)
-    double* error = outError!=NULL ? outError : static_cast<double*>(alloca(numValues * sizeof(double)));
-#ifdef HAVE_CUBA
-    CubaParams param(F, xlower, xupper);
-    // allocate another temp.array, unused
-    double* tempProb = static_cast<double*>(alloca(numValues * sizeof(double)));
-    int nregions, neval, fail;
-    const int NVEC = 1000, FLAGS = 0, KEY = 7, minNumEval = 0;
-    cubacores(0, 0);  // disable parallelization at the CUBA level
-    Cuhre(numVars, numValues, (integrand_t)&integrandNdimWrapperCuba, &param, NVEC,
-        relToler, absToler, FLAGS, minNumEval, maxNumEval, 
-        KEY, NULL/*STATEFILE*/, NULL/*spin*/,
-        &nregions, numEval!=NULL ? numEval : &neval, &fail, 
-        result, error, tempProb);
-    if(fail==-1)
-        throw std::runtime_error("integrateNdim: number of dimensions is too large");
-    if(fail==-2)
-        throw std::runtime_error("integrateNdim: number of components is too large");
-    // need to scale the result to account for coordinate transformation [xlower:xupper] => [0:1]
-    double scaleFactor = 1.;
-    for(unsigned int n=0; n<numVars; n++)
-        scaleFactor *= (xupper[n]-xlower[n]);
-    for(unsigned int m=0; m<numValues; m++) {
-        result[m] *= scaleFactor;
-        error [m] *= scaleFactor;
-    }
-    if(!param.error.empty())
-        throw std::runtime_error(param.error);
-#else
-    CubatureParams param(F);
-    hcubature_v(numValues, &integrandNdimWrapperCubature, &param,
-        numVars, xlower, xupper, maxNumEval, absToler, relToler,
-        ERROR_INDIVIDUAL, result, error);
-    if(numEval!=NULL)
-        *numEval = param.numEval;
-    if(!param.error.empty())
-        throw std::runtime_error(param.error);
-#endif
+    CubatureWorker(F, xlower, xupper, relToler, maxNumEval, result, error, numEval).run();
 }
 
 }  // namespace

@@ -91,7 +91,7 @@ namespace math{
 /// \name One-dimensional interpolation
 
 /** Common interface for one-dimensional piecewise-polynomial interpolators */
-class BaseInterpolator1d: public IFunction3Deriv, public IFunctionIntegral {
+class BaseInterpolator1d: public IFunction, public IFunctionIntegral {
 public:
     /** empty constructor is required for the class to be used in std::vector and alike places */
     BaseInterpolator1d() {};
@@ -101,6 +101,18 @@ public:
         All interpolators return NaN when empty (initialized by default or with zero-length arrays).
     */
     BaseInterpolator1d(const std::vector<double>& xvalues);
+
+    /** Actual computation of the function and up to three derivatives needs to be implemented
+        in the derived classes; if any of the output pointers is NULL, the corresponding quantity
+        does not need to be computed. */
+    virtual void evalDeriv(const double x,
+        /*output*/ double* val, double* der, double* der2, double* der3) const = 0;
+
+    /** Evaluate the function and up to two derivatives at the given point. */
+    virtual void evalDeriv(const double x, double* val=NULL, double* der=NULL, double* der2=NULL) const
+    {
+        evalDeriv(x, val, der, der2, NULL);
+    }
 
     /** check if the interpolator is initialized */
     bool empty() const { return xval.empty(); }
@@ -153,6 +165,11 @@ public:
     */
     virtual std::vector<double> roots(double y=0, double x1=NAN, double x2=NAN) const = 0;
 
+#if __cplusplus >= 201103L
+    virtual unsigned int numDerivs() const final { return 3; }
+#else
+    virtual unsigned int numDerivs() const { return 3; }
+#endif
 protected:
     std::vector<double> xval;  ///< grid nodes
 };

@@ -262,7 +262,7 @@ public:
     /// multiplied by the derivative of scaling transformation
     virtual double value(const double s) const {
         double duds, u = unscale(scaling, s, &duds);
-        return fnc.value(u) * duds;
+        return fnc(u) * duds;
     }
 };
 
@@ -500,11 +500,11 @@ void hermiteDerivs(double x0, double x1, double x2,
 /// \name ------ integration routines -------
 ///@{
 
-/** integrate a function on a finite interval, using an adaptive 
-    Gauss-Kronrod rule with maximum order up to 87. 
-    If the function is well-behaved, this is the fastest method, 
+/** integrate a function on a finite interval, using nested Gauss-Kronrod rules with increasing number
+    of points (21, 43 and 87) until the estimated error becomes smaller than the desired tolerance.
+    If the function is well-behaved, this is the fastest method,
     but if it cannot reach the required accuracy even using the highest-order rule,
-    no further improvement can be made. 
+    no further improvement can be made.
     \param[in] F  is the input function;
     \param[in] x1 is the lower end of the interval;
     \param[in] x2 is the upper end of the interval;
@@ -512,7 +512,7 @@ void hermiteDerivs(double x0, double x1, double x2,
     \param[out] error - if not NULL, output the error estimate in this variable;
     \param[out] numEval - if not NULL, output the number of function evaluations in this variable.
 */
-double integrate(const IFunction& F, double x1, double x2, double relToler,
+double integrateGK(const IFunction& F, double x1, double x2, double relToler,
     double* error=NULL, int* numEval=NULL);
 
 /** integrate a function on a finite interval, using a fully adaptive integration routine 
@@ -529,19 +529,6 @@ double integrate(const IFunction& F, double x1, double x2, double relToler,
 double integrateAdaptive(const IFunction& F, double x1, double x2, double relToler, 
     double* error=NULL, int* numEval=NULL);
 
-/** integrate a function on a finite interval, using a built-in fixed-order Gauss-Legendre rule
-    without error estimate.
-    \param[in] F  is the input function;
-    \param[in] x1 is the lower end of the interval;
-    \param[in] x2 is the upper end of the interval;
-    \param[in] N  is the number of points in Gauss-Legendre quadrature, must be <= MAX_GL_ORDER;
-               if a rule with the requested order N is not available,
-               N is increased to the nearest available one.
-    \return  the value of the integral.
-    \throw  std::invalid_argument if N < 1 or N > MAX_GL_ORDER.
-*/
-double integrateGL(const IFunction& F, double x1, double x2, int N);
-
 /** integrate a 1d function that provides M>=1 values on a finite interval,
     using a built-in fixed-order Gauss-Legendre rule without error estimate.
     \param[in]  F  is the input function;
@@ -556,12 +543,30 @@ double integrateGL(const IFunction& F, double x1, double x2, int N);
 */
 void integrateGL(const IFunctionNdim& F, double x1, double x2, int N, double result[]);
 
+/** integrate a 1d function on a finite interval, using a built-in fixed-order Gauss-Legendre rule
+    without error estimate (a shorthand for a function that provides one value).
+    \param[in] F  is the input function;
+    \param[in] x1 is the lower end of the interval;
+    \param[in] x2 is the upper end of the interval;
+    \param[in] N  is the number of points in Gauss-Legendre quadrature, must be <= MAX_GL_ORDER;
+               if a rule with the requested order N is not available,
+               N is increased to the nearest available one.
+    \return  the value of the integral.
+    \throw  std::invalid_argument if N < 1 or N > MAX_GL_ORDER.
+*/
+inline double integrateGL(const IFunction& F, double x1, double x2, int N)
+{
+    double result;
+    integrateGL(F, x1, x2, N, &result);
+    return result;
+}
+
 /** prepare a table for Gauss-Legendre integration of one or many functions on the same interval.
     The integral is approximated by a weighted sum of function values over the array of points:
     \f$  \int_{x1}^{x2} f(x) dx = \sum_{i=0}^{N-1}  w_i f(x_i)  \f$.
-    This function computes the coordinates x_i and weights w_i of these points 
-    for the given order of quadrature; the user then may perform the above summation
-    for as many functions as necessary, using the same table.
+    This function computes the coordinates x_i and weights w_i of these points for the given order
+    of the quadrature (N), or retrieves them from a pre-computed table if available for the given N.
+    One can then perform the above summation for as many functions as necessary, using the same table.
     \param[in]  x1  is the lower end of interval;
     \param[in]  x2  is the upper end of interval;
     \param[in]  N   is the number of points in the tables;
@@ -571,12 +576,12 @@ void integrateGL(const IFunctionNdim& F, double x1, double x2, int N, double res
 */
 void prepareIntegrationTableGL(double x1, double x2, int N, double* coords, double* weights);
 
-/// built-in GL integration tables are available for every N up to MAX_GL_TABLE
+/// precomputed GL integration tables are available for every N up to MAX_GL_TABLE
 const int MAX_GL_TABLE = 20;
-/// built-in GL integration tables are available for some (but not every) N up to MAX_GL_ORDER
+/// precomputed GL integration tables are available for some (but not every) N up to MAX_GL_ORDER
 const int MAX_GL_ORDER = 40;
 
-/// list of all built-in integration rules:  points and weights;
+/// list of all precomputed integration rules:  points and weights;
 /// if a rule is not available, the corresponding pointer is NULL.
 extern const double * const GLPOINTS [MAX_GL_ORDER+1];
 extern const double * const GLWEIGHTS[MAX_GL_ORDER+1];
@@ -600,7 +605,7 @@ extern const double * const GLWEIGHTS[MAX_GL_ORDER+1];
                 (if set to NULL, this information is not stored).
 */
 void integrateNdim(const IFunctionNdim& F, const double xlower[], const double xupper[],
-    const double relToler, const unsigned int maxNumEval,
+    const double relToler, const int maxNumEval,
     double result[], double error[]=NULL, int* numEval=NULL);
 
 ///@}

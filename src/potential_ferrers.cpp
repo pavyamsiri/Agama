@@ -54,7 +54,7 @@ void Ferrers::evalCar(const coord::PosCar &pos,
     double m2 = X2/(a*a) + Y2/(b*b) + Z2/(c*c);
     double r2 = X2+Y2+Z2;
     if(r2 == INFINITY) {
-        if(potential) *potential = 0;
+        if(potential) *potential = std::signbit(mass) ? 0.0 : -0.0;
         if(grad) grad->dx = grad->dy = grad->dz = 0;
         if(hess) hess->dx2 = hess->dy2 = hess->dz2 = hess->dxdy = hess->dydz = hess->dxdz = 0;
         return;

@@ -48,7 +48,7 @@ public:
         in the output array, otherwise store just a single value (a sum of all components)
         for each input point; similar storage scheme for derivatives if they are requested.
     */
-    virtual void evalmany(const size_t npoints, const actions::Actions J[], bool separate,
+    virtual void evalMany(const size_t npoints, const actions::Actions J[], bool separate,
         /*output*/ double values[], DerivByActions derivs[]=NULL) const;
 
 private:

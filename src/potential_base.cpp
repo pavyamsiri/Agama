@@ -115,7 +115,7 @@ coord::PosCyl unscaleCoords(const double vars[], double* jac)
 }
 
 /// helper class for integrating density over volume
-void DensityIntegrandNdim::evalmany(const size_t npoints, const double vars[], double values[]) const
+void DensityIntegrandNdim::evalMany(const size_t npoints, const double vars[], double values[]) const
 {
     // 0. allocate various temporary arrays on the stack - no need to delete them manually
     // positions in cylindrical coords (unscaled from the input variables)
@@ -130,7 +130,7 @@ void DensityIntegrandNdim::evalmany(const size_t npoints, const double vars[], d
     }
 
     // 2. compute the density for all these points at once
-    dens.evalmanyDensityCyl(npoints, pos, values);
+    dens.evalManyDensityCyl(npoints, pos, values);
 
     // 3. multiply by jacobian and post-process if needed
     for(size_t i=0; i<npoints; i++) {
@@ -397,11 +397,11 @@ public:
     GetDensity(const BaseDensity& _src) : src(_src) {}
     void evalSph(int npoints, const coord::PosCyl pos[], double result[]) const
     {
-        src.evalmanyDensityCyl(npoints, pos, result);
+        src.evalManyDensityCyl(npoints, pos, result);
     }
     void evalCyl(int npoints, const coord::PosCyl pos[], double result[]) const
     {
-        src.evalmanyDensityCyl(npoints, pos, result);
+        src.evalManyDensityCyl(npoints, pos, result);
     }
 };
 

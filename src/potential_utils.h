@@ -175,7 +175,7 @@ std::vector<double> createInterpolationGrid(const BasePotential& potential, doub
     It is applicable to any spherical or axisymmetric potential that tends to zero at infinity,
     is monotonic with radius, and may be regular or singular at origin.
 */
-class Interpolator: public math::IFunction3Deriv {
+class Interpolator: public math::IFunction {
 public:
     /** The potential passed as parameter is only used to initialize the internal
         interpolation tables in the constructor, and is not used afterwards
@@ -183,11 +183,17 @@ public:
     explicit Interpolator(const BasePotential& potential);
 
     /// compute the potential and its derivatives at the given cylindrical radius in the z=0 plane
-    virtual void evalDeriv(const double R,
+    void evalDeriv(const double R,
         double* val, double* deriv, double* deriv2, double* deriv3) const;
 
     /// of course, the more common overload computing up to two derivatives is also available
-    using math::IFunction3Deriv::evalDeriv;
+    virtual void evalDeriv(const double x, double* val=NULL, double* der=NULL, double* der2=NULL) const
+    {
+        evalDeriv(x, val, der, der2, NULL);
+    }
+
+    /// interpolator provides up to three derivatives of potential w.r.t. radius
+    virtual unsigned int numDerivs() const { return 3; }
 
     /// return L_circ(E) and optionally its first derivative
     double L_circ(const double E, double* deriv=NULL) const;

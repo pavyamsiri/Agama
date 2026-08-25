@@ -156,7 +156,7 @@ public:
     virtual double value(const double x) const {
         double sum = 0;
         for(unsigned int c=0; c<comps.size(); c++)
-            sum += comps[c]->value(x);
+            sum += (*comps[c])(x);
         return sum;
     }
 };
@@ -804,7 +804,7 @@ FokkerPlanckSolver::FokkerPlanckSolver(
         double rmin  = R_from_Lz(*data->currPot, sqrt(2 * data->Mbh * rcapt)), Phi;
         coord::GradCyl dPhi;
         data->currPot->eval(coord::PosCyl(rmin,0,0), &Phi, &dPhi);
-        hmin = data->phasevol->value(Phi + 0.5 * rmin * dPhi.dR);
+        hmin = (*data->phasevol)(Phi + 0.5 * rmin * dPhi.dR);
         fixmin = true;
     }
 
@@ -813,7 +813,7 @@ FokkerPlanckSolver::FokkerPlanckSolver(
         coord::GradCyl dPhi;
         double Phi;
         data->currPot->eval(coord::PosCyl(params.rmax,0,0), &Phi, &dPhi);
-        hmax = data->phasevol->value(Phi);
+        hmax = (*data->phasevol)(Phi);
         fixmax = true;
     }
 
@@ -1048,7 +1048,7 @@ void FokkerPlanckSolver::reinitAdvDifCoefs()
     // (mass advection flux and associated energy flow will be computed later in the evolve() method)
     double h0 = data->gridh[0];
     data->drainRateEnergy =
-        GAMMA * (-model.Kg(h0) * model.I0(h0) + (model.Kh(h0) + h0 * model.I0(h0)) * f->value(h0));
+        GAMMA * (-model.Kg(h0) * model.I0(h0) + (model.Kh(h0) + h0 * model.I0(h0)) * (*f)(h0));
 
     // convert the sum of total energies of all stars into the total energy of the entire system
     data->Etot = 0.5 * (data->Etot + (data->Mbh!=0. ? data->Mbh * data->Phi0 : 0.) + data->Ekin);
@@ -1107,7 +1107,7 @@ void FokkerPlanckSolver::reinitAdvDifCoefs()
         if(data->sourceRate[comp] == 0)
             continue;
         // translate the radius of the source term to phase volume
-        double src_h = data->phasevol->value(
+        double src_h = (*data->phasevol)(
             data->currPot->value(coord::PosCyl(data->sourceRadius[comp], 0, 0)));
         // assign the source rate at grid nodes in h
         data->gridSourceRate[comp] = impl->projVector(LogNormal(src_h, SOURCE_WIDTH));

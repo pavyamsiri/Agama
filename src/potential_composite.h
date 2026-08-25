@@ -44,11 +44,11 @@ private:
     virtual double densityCar(const coord::PosCar &pos, double time) const;
     virtual double densityCyl(const coord::PosCyl &pos, double time) const;
     virtual double densitySph(const coord::PosSph &pos, double time) const;
-    virtual void evalmanyDensityCar(const size_t npoints, const coord::PosCar pos[],
+    virtual void evalManyDensityCar(const size_t npoints, const coord::PosCar pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
-    virtual void evalmanyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
+    virtual void evalManyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
-    virtual void evalmanyDensitySph(const size_t npoints, const coord::PosSph pos[],
+    virtual void evalManyDensitySph(const size_t npoints, const coord::PosSph pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
 };
 
@@ -83,11 +83,11 @@ private:
     virtual double densityCar(const coord::PosCar &pos, double time) const;
     virtual double densityCyl(const coord::PosCyl &pos, double time) const;
     virtual double densitySph(const coord::PosSph &pos, double time) const;
-    virtual void evalmanyDensityCar(const size_t npoints, const coord::PosCar pos[],
+    virtual void evalManyDensityCar(const size_t npoints, const coord::PosCar pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
-    virtual void evalmanyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
+    virtual void evalManyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
-    virtual void evalmanyDensitySph(const size_t npoints, const coord::PosSph pos[],
+    virtual void evalManyDensitySph(const size_t npoints, const coord::PosSph pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
 };
 
@@ -201,11 +201,11 @@ private:
     virtual double densitySph(const coord::PosSph &pos, double time) const
     { return densityCar(toPosCar(pos), time); }
 
-    virtual void evalmanyDensityCar(const size_t npoints, const coord::PosCar pos[],
+    virtual void evalManyDensityCar(const size_t npoints, const coord::PosCar pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
-    virtual void evalmanyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
+    virtual void evalManyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
-    virtual void evalmanyDensitySph(const size_t npoints, const coord::PosSph pos[],
+    virtual void evalManyDensitySph(const size_t npoints, const coord::PosSph pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
 };
 
@@ -252,11 +252,11 @@ private:
     virtual double densitySph(const coord::PosSph &pos, double time) const
     { return densityCar(toPosCar(pos), time); }
 
-    virtual void evalmanyDensityCar(const size_t npoints, const coord::PosCar pos[],
+    virtual void evalManyDensityCar(const size_t npoints, const coord::PosCar pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
-    virtual void evalmanyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
+    virtual void evalManyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
-    virtual void evalmanyDensitySph(const size_t npoints, const coord::PosSph pos[],
+    virtual void evalManyDensitySph(const size_t npoints, const coord::PosSph pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
 };
 
@@ -292,11 +292,11 @@ private:
     virtual double densitySph(const coord::PosSph &pos, double time) const
     { return dens->density(orientation.toRotated(toPosCar(pos)), time); }
 
-    virtual void evalmanyDensityCar(const size_t npoints, const coord::PosCar pos[],
+    virtual void evalManyDensityCar(const size_t npoints, const coord::PosCar pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
-    virtual void evalmanyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
+    virtual void evalManyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
-    virtual void evalmanyDensitySph(const size_t npoints, const coord::PosSph pos[],
+    virtual void evalManyDensitySph(const size_t npoints, const coord::PosSph pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
 };
 
@@ -338,11 +338,11 @@ private:
     virtual double densitySph(const coord::PosSph &pos, double time) const
     { return pot->density(orientation.toRotated(toPosCar(pos)), time); }
 
-    virtual void evalmanyDensityCar(const size_t npoints, const coord::PosCar pos[],
+    virtual void evalManyDensityCar(const size_t npoints, const coord::PosCar pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
-    virtual void evalmanyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
+    virtual void evalManyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
-    virtual void evalmanyDensitySph(const size_t npoints, const coord::PosSph pos[],
+    virtual void evalManyDensitySph(const size_t npoints, const coord::PosSph pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
 };
 
@@ -376,11 +376,11 @@ private:
     virtual double densitySph(const coord::PosSph &pos, double time) const
     { return dens->density(coord::PosSph(pos.r, pos.theta, pos.phi - angle(time)), time); }
 
-    virtual void evalmanyDensityCar(const size_t npoints, const coord::PosCar pos[],
+    virtual void evalManyDensityCar(const size_t npoints, const coord::PosCar pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
-    virtual void evalmanyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
+    virtual void evalManyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
-    virtual void evalmanyDensitySph(const size_t npoints, const coord::PosSph pos[],
+    virtual void evalManyDensitySph(const size_t npoints, const coord::PosSph pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
 };
 
@@ -419,11 +419,11 @@ private:
     virtual double densitySph(const coord::PosSph &pos, double time) const
     { return pot->density(coord::PosSph(pos.r, pos.theta, pos.phi - angle(time)), time); }
 
-    virtual void evalmanyDensityCar(const size_t npoints, const coord::PosCar pos[],
+    virtual void evalManyDensityCar(const size_t npoints, const coord::PosCar pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
-    virtual void evalmanyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
+    virtual void evalManyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
-    virtual void evalmanyDensitySph(const size_t npoints, const coord::PosSph pos[],
+    virtual void evalManyDensitySph(const size_t npoints, const coord::PosSph pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
 };
 
@@ -473,11 +473,11 @@ private:
         return s*s*s * ampl(time) * dens->density(coord::PosSph(pos.r * s, pos.theta, pos.phi), time);
     }
 
-    virtual void evalmanyDensityCar(const size_t npoints, const coord::PosCar pos[],
+    virtual void evalManyDensityCar(const size_t npoints, const coord::PosCar pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
-    virtual void evalmanyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
+    virtual void evalManyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
-    virtual void evalmanyDensitySph(const size_t npoints, const coord::PosSph pos[],
+    virtual void evalManyDensitySph(const size_t npoints, const coord::PosSph pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
 };
 
@@ -534,11 +534,11 @@ private:
         return s*s*s * ampl(time) * pot->density(coord::PosSph(pos.r * s, pos.theta, pos.phi), time);
     }
 
-    virtual void evalmanyDensityCar(const size_t npoints, const coord::PosCar pos[],
+    virtual void evalManyDensityCar(const size_t npoints, const coord::PosCar pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
-    virtual void evalmanyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
+    virtual void evalManyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
-    virtual void evalmanyDensitySph(const size_t npoints, const coord::PosSph pos[],
+    virtual void evalManyDensitySph(const size_t npoints, const coord::PosSph pos[],
         /*output*/ double values[], /*input*/ double time=0) const;
 };
 

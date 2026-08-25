@@ -135,7 +135,7 @@ template<>
 inline void collectValues(const BaseDensity& src, const std::vector<coord::PosCyl>& points,
     /*output array of length points.size()*/ double values[])
 {
-    src.evalmanyDensityCyl(points.size(), &points[0], values);   // vectorized evaluation at many points
+    src.evalManyDensityCyl(points.size(), &points[0], values);   // vectorized evaluation at many points
 }
 
 template<>
@@ -231,7 +231,7 @@ inline void density_rho_m(const BaseDensity& dens, int m, size_t npoints, const 
             rho[p] = densazi->rho_m(m, pos[p].R, pos[p].z);
     } else {  // dynamic_cast failed - assume the input density is already axisymmetric
         if(m==0)
-            dens.evalmanyDensityCyl(npoints, pos, rho);
+            dens.evalManyDensityCyl(npoints, pos, rho);
         else
             std::fill(rho, rho+npoints, 0);  // m!=0 harmonics are zero in the axisymmetric case
     }
@@ -337,11 +337,11 @@ public:
 
     // evaluate the integrand at a single input point
     virtual void eval(const double vars[], double values[]) const {
-        evalmany(1, vars, values);
+        evalMany(1, vars, values);
     }
 
     // vectorized evaluation at several input points (scaled R,z)
-    virtual void evalmany(const size_t npoints, const double vars[], double values[]) const
+    virtual void evalMany(const size_t npoints, const double vars[], double values[]) const
     {
         // 1st step: unscale input coordinates
         coord::PosCyl* pos = static_cast<coord::PosCyl*>(alloca(npoints * sizeof(coord::PosCyl)));

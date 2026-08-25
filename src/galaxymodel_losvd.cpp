@@ -16,10 +16,7 @@ namespace {  // internal
 static const double EPSREL_PIXEL_MASS = 1e-3;
 
 /// max number of density evaluations per each pixel in the above integrals
-static const int MAX_NUM_EVAL_PIXEL_MASS = 1e4;
-
-/// max number of DF evaluations for constructing the LOSVD
-static const int MAX_NUM_EVAL_LOSVD_DF = 1e6;
+static const int MAX_NUM_EVAL = 1e4;
 
 std::vector<GaussianPSF> checkPSF(const std::vector<GaussianPSF>& gaussianPSF)
 {
@@ -453,45 +450,6 @@ void TargetLOSVD<N>::finalizeDatacube(math::Matrix<double> &datacube, StorageNum
 }
 
 template<int N>
-void TargetLOSVD<N>::computeDFProjection(const GalaxyModel& model, StorageNumT* output) const
-{
-    // 1st stage: compute the integrals of the DF, weighted by the B-spline basis functions,
-    // over each pixel of the regular 2d grid in the image plane (projections onto the B-spline basis)
-    ApertureLOSVDIntegrand<N> fnc(bsplx, bsply, bsplv);
-    math::Matrix<double> datacube = newDatacube();
-    double* cubedata = datacube.data();
-    int numPixels = (bsplx.xvalues().size()-1) * (bsply.xvalues().size()-1);
-    // loop over pixels of the 2d B-spline grid in the image plane
-#ifdef _OPENMP
-#pragma omp parallel for schedule(static)
-#endif
-    for(int p=0; p<numPixels; p++) {
-        const int indx = p % (bsplx.xvalues().size()-1), indy = p / (bsplx.xvalues().size()-1),
-        nx = bsplx.numValues(), nv = bsplv.numValues();
-        // integration in a 2d rectangular pixel: X, Y are projected coords in the image plane
-        double Xlim[2] = { bsplx.xvalues()[indx], bsplx.xvalues()[indx+1] };
-        double Ylim[2] = { bsply.xvalues()[indy], bsply.xvalues()[indy+1] };
-        std::vector<double> result(fnc.numValues());
-        computeProjection(model, fnc, Xlim, Ylim, orientation,
-            &result[0], EPSREL_PIXEL_MASS, MAX_NUM_EVAL_LOSVD_DF);
-        // add the computed integrals to the output array
-#ifdef _OPENMP
-#pragma omp critical
-#endif
-        {
-            for(int ky=0; ky<=N; ky++)
-                for(int kx=0; kx<=N; kx++)
-                    for(int iv=0; iv<nv; iv++)
-                        cubedata[ ((indy + ky) * nx + indx + kx) * nv + iv ] +=
-                            result[ (ky * (N+1) + kx) * nv + iv ];
-        }
-    }
-
-    // 2nd stage: convert the collected datacube into the output array of LOSVDs in each aperture
-    finalizeDatacube(datacube, output);
-}
-
-template<int N>
 std::vector<double> TargetLOSVD<N>::computeDensityProjection(const potential::BaseDensity& density) const
 {
     // 1st stage: compute the integrals of surface density, weighted by the B-spline basis functions,
@@ -511,7 +469,7 @@ std::vector<double> TargetLOSVD<N>::computeDensityProjection(const potential::Ba
         double xywupp[3] = { bsplx.xvalues()[ix+1], bsply.xvalues()[iy+1], 1 };
         double result[ (N+1) * (N+1) ];  // number of nonzero 2d basis elements in each pixel
         // compute the integrals
-        math::integrateNdim(fnc, xywlow, xywupp, EPSREL_PIXEL_MASS, MAX_NUM_EVAL_PIXEL_MASS, result);
+        math::integrateNdim(fnc, xywlow, xywupp, EPSREL_PIXEL_MASS, MAX_NUM_EVAL, result);
         // get the offset of the B-spline values in the output array
         double dummy[N+1];
         int indx = bsplx.nonzeroComponents(xywlow[0], 0, dummy),
@@ -573,35 +531,6 @@ void TargetKinemShell<N>::addPoint(const double point[6], double mult, double ou
     double vt2 = pow_2(point[3]) + pow_2(point[4]) + pow_2(point[5]) - vr2;
     bspl.addPoint(&r, mult * vr2, output);
     bspl.addPoint(&r, mult * vt2, output + bspl.numValues());
-}
-
-template<int N>
-void TargetKinemShell<N>::computeDFProjection(const GalaxyModel& model, StorageNumT* output) const
-{
-    // compute the moments of the DF at this many GL points on each segment of the radial grid
-    static const int GLORDER = 4;
-    const double *glnodes = math::GLPOINTS[GLORDER], *glweights = math::GLWEIGHTS[GLORDER];
-    math::Matrix<double> datacube = newDatacube();
-    const int size = (bspl.xvalues().size()-1) * GLORDER;
-#ifdef _OPENMP
-#pragma omp parallel for schedule(static)
-#endif
-    for(int n=0; n<size; n++) {
-        int i=n/GLORDER, k=n%GLORDER;  // decompose the combined index into the grid segment and offset
-        double r = bspl.xvalues()[i] * (1-glnodes[k]) + bspl.xvalues()[i+1] * glnodes[k];
-        double dens;
-        coord::Vel2Car vel2;
-        computeMoments(model, coord::PosCar(r,0,0), &dens, NULL, &vel2);
-        double mult = dens * glweights[k] * 4*M_PI*r*r * (bspl.xvalues()[i+1] - bspl.xvalues()[i]);
-#ifdef _OPENMP
-#pragma omp critical
-#endif
-        {
-            bspl.addPoint(&r, mult *  vel2.vx2, datacube.data());
-            bspl.addPoint(&r, mult * (vel2.vy2 + vel2.vz2), datacube.data() + bspl.numValues());
-        }
-    }
-    finalizeDatacube(datacube, output);
 }
 
 template<int N>

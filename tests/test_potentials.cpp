@@ -33,12 +33,16 @@ bool testPotential(const potential::BasePotential& potential)
     bool ok=true;
     std::cout << "\033[1;33m " << potential.name() << " \033[0m";
     // check that the potential is defined (not NAN) at zero and infinity
-    double
-    val0car = potential.value(coord::PosCar(0,0,0)),
+    double val0car, val0cyl, val0sph;
+    coord::GradCar grad0car;
+    coord::GradCyl grad0cyl;
+    coord::GradSph grad0sph; 
+    potential.eval(coord::PosCar(0, 0, 0), &val0car, &grad0car);
+    potential.eval(coord::PosCyl(0, 0, 0), &val0cyl, &grad0cyl);
+    potential.eval(coord::PosSph(0, 0, 0), &val0sph, &grad0sph);
+    double 
     val8car = potential.value(coord::PosCar(INFINITY,0,0)),
-    val0cyl = potential.value(coord::PosCyl(0,0,0)),
     val8cyl = potential.value(coord::PosCyl(INFINITY,0,0)),
-    val0sph = potential.value(coord::PosSph(0,0,0)),
     val8sph = potential.value(coord::PosSph(INFINITY,0,0));
     std::cout << " at origin is " << val0car << '/' << val0cyl << '/' << val0sph;
     if(!(val0car == val0cyl && val0car == val0sph)) {   // allowed to be -inf, but not NaN
@@ -49,6 +53,12 @@ bool testPotential(const potential::BasePotential& potential)
     if(!(val8car == val8cyl && val8car == val8sph)) {   // allowed to be infinite, but not NaN
         ok = false;
         std::cout << err;
+    }
+    if( !isFinite(grad0car.dx + grad0car.dy + grad0car.dz) ||
+        !isFinite(grad0cyl.dR + grad0cyl.dphi + grad0cyl.dz) ||
+        !isFinite(grad0sph.dr + grad0sph.dphi + grad0sph.dtheta) ) {
+        std::cout << " Gradient at origin: " << grad0car << grad0cyl << grad0sph << err;
+        ok = false;
     }
 
     double Rmax0  = R_max (potential, val0car), Rmax8  = R_max (potential, val8car),
@@ -405,6 +415,7 @@ int main() {
     addPot(pots, "type=Logarithmic, v0=2, scaleRadius=0.01, p=0.8, q=0.5");
     addPot(pots, "type=Ferrers, mass=1, scaleRadius=0.9, p=0.8, q=0.5");
     addPot(pots, "type=Dehnen, mass=2, scaleRadius=1, gamma=1.5");
+    addPot(pots, "type=Dehnen, mass=2, scaleRadius=1, gamma=1.5, p=0.8, q=0.5");
     addPot(pots, "type=PerfectEllipsoid, q=0.6");
     addPot(pots, "type=Multipole, density=Spheroid, densityNorm=1e5, scaleRadius=1.234e-5, "
         "gamma=-2.0, beta=2.99, alpha=2.5, gridSizeR=64");

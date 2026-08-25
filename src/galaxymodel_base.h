@@ -23,7 +23,7 @@ public:
     /// return a value in the range [0..1]
     virtual double value(const coord::PosVelCar& point) const = 0;
     /// evaluate the function at several input points at once (could be more efficient than one-by-one)
-    virtual void evalmany(const size_t npoints, const coord::PosVelCar points[], double values[]) const {
+    virtual void evalMany(const size_t npoints, const coord::PosVelCar points[], double values[]) const {
         // default implementation is a simple sequential loop
         for(size_t p=0; p<npoints; p++)
             values[p] = value(points[p]);
@@ -422,11 +422,11 @@ private:
 
     /// functions for computing the density for an array of points in three coordinate systems.
     /// \note OpenMP-parallelized loop over points.
-    virtual void evalmanyDensityCar(const size_t npoints, const coord::PosCar pos[],
+    virtual void evalManyDensityCar(const size_t npoints, const coord::PosCar pos[],
         /*output*/ double values[], /*input*/ double t=0) const;
-    virtual void evalmanyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
+    virtual void evalManyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
         /*output*/ double values[], /*input*/ double t=0) const;
-    virtual void evalmanyDensitySph(const size_t npoints, const coord::PosSph pos[],
+    virtual void evalManyDensitySph(const size_t npoints, const coord::PosSph pos[],
         /*output*/ double values[], /*input*/ double t=0) const;
 };
 

@@ -49,15 +49,15 @@ void computeDensityParallel(const potential::BaseDensity& density,
         throw std::runtime_error("Error in DensityFromDF: "+errorMsg);
 }
 
-void DensityFromDF::evalmanyDensityCar(const size_t npoints, const coord::PosCar pos[],
+void DensityFromDF::evalManyDensityCar(const size_t npoints, const coord::PosCar pos[],
     double values[], double) const {
     computeDensityParallel(*this, npoints, pos, values);
 }
-void DensityFromDF::evalmanyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
+void DensityFromDF::evalManyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
     double values[], double) const {
     computeDensityParallel(*this, npoints, pos, values);
 }
-void DensityFromDF::evalmanyDensitySph(const size_t npoints, const coord::PosSph pos[],
+void DensityFromDF::evalManyDensitySph(const size_t npoints, const coord::PosSph pos[],
     double values[], double) const {
     computeDensityParallel(*this, npoints, pos, values);
 }
@@ -210,11 +210,11 @@ public:
 
     // evaluate a single input point
     virtual void eval(const double vars[], double values[]) const {
-        evalmany(1, vars, values);
+        evalMany(1, vars, values);
     }
 
     // evaluate the integrand for many input points at once
-    virtual void evalmany(const size_t npoints, const double vars[], double values[]) const
+    virtual void evalMany(const size_t npoints, const double vars[], double values[]) const
     {
         // 0. allocate various temporary arrays on the stack - no need to delete them manually
         size_t numvars = numVars(), numvalues = numValues();
@@ -238,7 +238,7 @@ public:
 
         // 2. evaluate the selection function for all input points at once
         try{
-            model.selFunc.evalmany(npoints, posvel, /*output*/ sf);
+            model.selFunc.evalMany(npoints, posvel, /*output*/ sf);
         }
         catch(std::exception& e) {
             FILTERMSG(utils::VL_WARNING, "DFIntegrandNdim", std::string(e.what()));
@@ -273,7 +273,7 @@ public:
 
         // 4. evaluate the DF for the entire selected subset of points at once
         try{
-            model.distrFunc.evalmany(nselected, act, /*separate*/ dflen!=1, /*output*/ df);
+            model.distrFunc.evalMany(nselected, act, /*separate*/ dflen!=1, /*output*/ df);
         }
         catch(std::exception& e) {
             FILTERMSG(utils::VL_WARNING, "DFIntegrandNdim", std::string(e.what()));

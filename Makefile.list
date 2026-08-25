@@ -32,7 +32,6 @@ SOURCES   = interface_c.cpp \
             actions_staeckel.cpp \
             actions_torus.cpp \
             coord.cpp \
-            cubature.cpp \
             df_base.cpp \
             df_disk.cpp \
             df_factory.cpp \

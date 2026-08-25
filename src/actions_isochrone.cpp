@@ -62,7 +62,7 @@ coord::PosVelCyl mapIsochrone(
     }
     double signJphi = math::sign(aa.Jphi);
     double absJphi  = signJphi * aa.Jphi;
-    double L    = aa.Jz + absJphi;
+    double L    = aa.Jz + absJphi /*prevent 0/0 indeterminacy*/ + 1e-300;
     double L1   = sqrt(L*L + 4*M*b);
     double LL1  = 0.5 + 0.5 * L/L1;
     double J0   = aa.Jr + 0.5 * (L + L1);  // combined magnitude of actions

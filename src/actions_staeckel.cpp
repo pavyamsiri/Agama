@@ -995,7 +995,7 @@ void ActionFinderAxisymFudge::eval(const coord::PosVelCyl& point,
     // where I3max(E, Lz) is the maximum possible value of I3,
     // computed from the radius of a shell orbit
     double Rshell= fmax(0, interpR.value(xi, chi)) * Rcirc;
-    double PhiS  = interp.value(Rshell);
+    double PhiS  = interp(Rshell);
     double lamS  = pow_2(Rshell) + fd*fd;  // lambda(Rshell,z=0)
     double I3max = fmax(0, E - PhiS - (Rshell>0 ? 0.5 * pow_2(Lz/Rshell) : 0) ) * lamS;
 #if 0   // method L: take the potential at point (lambda,0)

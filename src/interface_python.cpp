@@ -66,7 +66,7 @@
 #include "utils.h"
 #include "utils_config.h"
 // text string embedded into the python module as the __version__ attribute (including Github commit number)
-#define AGAMA_VERSION "1.0.160 compiled on " __DATE__
+#define AGAMA_VERSION "1.0.161 compiled on " __DATE__
 
 // older versions of numpy have different macro names
 // (will need to expand this list if other similar macros are used in the code)
@@ -1758,38 +1758,38 @@ public:
         return densityCar(toPosCar(pos), time); }
     virtual double densityCar(const coord::PosCar &pos, double time) const {
         double result;
-        evalmanyDensityCar(1, &pos, &result, time);  // call the vectorized function for one input point
+        evalManyDensityCar(1, &pos, &result, time);  // call the vectorized function for one input point
         return result;
     }
     // next come vectorized evaluation functions in the 'non-native' coordinate systems
-    virtual void evalmanyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
+    virtual void evalManyDensityCyl(const size_t npoints, const coord::PosCyl pos[],
         /*output*/ double values[], /*input*/ double time) const
     {
         if(npoints==1) {  // fast track
             coord::PosCar poscar = toPosCar(pos[0]);
-            evalmanyDensityCar(1, &poscar, values, time);
+            evalManyDensityCar(1, &poscar, values, time);
         } else {
             ALLOC(npoints, coord::PosCar, poscar)
             for(size_t i=0; i<npoints; i++)
                 poscar[i] = toPosCar(pos[i]);
-            evalmanyDensityCar(npoints, &poscar[0], values, time);  // the actual evaluation function
+            evalManyDensityCar(npoints, &poscar[0], values, time);  // the actual evaluation function
         }
     }
-    virtual void evalmanyDensitySph(const size_t npoints, const coord::PosSph pos[],
+    virtual void evalManyDensitySph(const size_t npoints, const coord::PosSph pos[],
         /*output*/ double values[], /*input*/ double time) const
     {
         if(npoints==1) {  // fast track
             coord::PosCar poscar = toPosCar(pos[0]);
-            evalmanyDensityCar(1, &poscar, values, time);
+            evalManyDensityCar(1, &poscar, values, time);
         } else {
             ALLOC(npoints, coord::PosCar, poscar)
             for(size_t i=0; i<npoints; i++)
                 poscar[i] = toPosCar(pos[i]);
-            evalmanyDensityCar(npoints, &poscar[0], values, time);  // the actual evaluation function
+            evalManyDensityCar(npoints, &poscar[0], values, time);  // the actual evaluation function
         }
     }
     // and finally here is the actual vectorized evaluation function in cartesian coordinates
-    virtual void evalmanyDensityCar(const size_t npoints, const coord::PosCar pos[],
+    virtual void evalManyDensityCar(const size_t npoints, const coord::PosCar pos[],
         /*output*/ double values[], /*input*/ double /*time*/) const
     {
         ALLOC(3*npoints, double, xyz)
@@ -2061,7 +2061,7 @@ public:
             ALLOC(npoints, coord::PosCar, points)
             for(npy_intp i=0; i<npoints; i++)
                 points[i] = convertPos(&inputBuffer[(i + indexStart) * 3]);
-            dens.evalmanyDensityCar(npoints, points, &outputBuffer[indexStart],
+            dens.evalManyDensityCar(npoints, points, &outputBuffer[indexStart],
                 time[0] * conv->timeUnit);
             for(npy_intp indexPoint=indexStart; indexPoint<indexEnd; indexPoint++)
                 outputBuffer[indexPoint] /= conv->massUnit / pow_3(conv->lengthUnit);
@@ -4118,10 +4118,10 @@ public:
     virtual void evalDeriv(const actions::Actions &J,
         double *val, df::DerivByActions *der=NULL) const
     {
-        evalmany(1, &J, /*separate*/ false, val, der);
+        evalMany(1, &J, /*separate*/ false, val, der);
     }
     // vectorized form is the one that actually does the work
-    virtual void evalmany(const size_t npoints, const actions::Actions J[], bool,
+    virtual void evalMany(const size_t npoints, const actions::Actions J[], bool,
         double values[], df::DerivByActions *deriv=NULL) const
     {
         ALLOC(3*npoints, double, act)
@@ -4380,7 +4380,7 @@ public:
         ALLOC(npoints, actions::Actions, act)
         for(npy_intp i=0; i<npoints; i++)
             act[i] = convertActions(&inputBuffer[(i + indexStart) * 3]);
-        df.evalmany(npoints, act, /*separate*/false, &outputBuffer[0][indexStart],
+        df.evalMany(npoints, act, /*separate*/false, &outputBuffer[0][indexStart],
             der ? (df::DerivByActions*)(&outputBuffer[1][indexStart]) : NULL);
         for(npy_intp indexPoint=indexStart; indexPoint<indexEnd; indexPoint++)
             outputBuffer[0][indexPoint] /=  // DF dimension: M L^-3 V^-3
@@ -4618,7 +4618,7 @@ public:
         ALLOC(npoints, coord::PosVelCar, points)
         for(npy_intp i=0; i<npoints; i++)
             points[i] = convertPosVel(&inputBuffer[(i + indexStart) * 6]);
-        sf.evalmany(npoints, points, &outputBuffer[indexStart]);
+        sf.evalMany(npoints, points, &outputBuffer[indexStart]);
     }
 };
 
@@ -4652,10 +4652,10 @@ public:
     virtual double value(const coord::PosVelCar& pv) const
     {
         double val;
-        evalmany(1, &pv, &val);
+        evalMany(1, &pv, &val);
         return val;
     }
-    virtual void evalmany(const size_t npoints, const coord::PosVelCar points[], double values[]) const
+    virtual void evalMany(const size_t npoints, const coord::PosVelCar points[], double values[]) const
     {
         ALLOC(6*npoints, double, posvel)
         for(size_t p=0; p<npoints; p++)
@@ -6175,7 +6175,7 @@ inline double splEval(const math::BaseInterpolator1d& spl, double x, int der)
 {
     double result;
     switch(der) {
-        case 0: return spl.value(x);
+        case 0: return spl(x);
         case 1: spl.evalDeriv(x, NULL, &result); return result;
         case 2: spl.evalDeriv(x, NULL, NULL, &result); return result;
         case 3: spl.evalDeriv(x, NULL, NULL, NULL, &result); return result;
@@ -6278,7 +6278,7 @@ PyObject* Spline_value(SplineObject* self, PyObject* args, PyObject* namedArgs)
         else if(sigma_arr) {
             double sigma = static_cast<double*>(PyArray_DATA(sigma_arr))[sigma_size==1 ? 0 : i];
             x = sigma==0 ?
-                (x>=xmin && x<=xmax ? self->spl->value(x) : 0) :
+                (x>=xmin && x<=xmax ? (*self->spl)(x) : 0) :
                 self->spl->convolve(x, math::Gaussian(sigma));
         }
         else if(extrapolate_obj!=NULL && (x<xmin || x>xmax))
@@ -7168,7 +7168,7 @@ typedef struct {
     galaxymodel::PtrTarget target;
     // dimensional unit conversion factor for applying the Target to a Density object
     double unitDensityProjection;
-    // same factor for a GalaxyModel object, an N-body snapshot, or during orbit integration
+    // same factor for an N-body snapshot or during orbit integration
     double unitDFProjection;
 } TargetObject;
 /// \endcond
@@ -7388,7 +7388,7 @@ PyObject* Target_value(TargetObject* self, PyObject* args, PyObject* namedArgs)
     }
     if(!noNamedArgs(namedArgs))
         return NULL;
-    const char* errorstr = "Argument must be an instance of Density, GalaxyModel, "
+    const char* errorstr = "Argument must be an instance of Density, "
         "one or several Orbit instances, or an array of particles "
         "(a tuple with two elements - Nx6 position/velocity coordinates and N masses)";
 
@@ -7443,21 +7443,6 @@ PyObject* Target_value(TargetObject* self, PyObject* args, PyObject* namedArgs)
                 result = self->target->computeDensityProjection(*dens);
             }
             math::blas_dmul(1./self->unitDensityProjection, result);
-            return toPyArray(result);
-        }
-
-        // otherwise we may have a GalaxyModel object as input
-        if(PyObject_IsInstance(arg, (PyObject*) &GalaxyModelType)) {
-            std::vector<galaxymodel::StorageNumT> result(self->target->numCoefs());
-            {   // same remark here
-                PyReleaseGIL unlock;
-                self->target->computeDFProjection(galaxymodel::GalaxyModel(
-                    *((GalaxyModelObject*)arg)->pot_obj->pot,
-                    *((GalaxyModelObject*)arg)->af_obj->af,
-                    *((GalaxyModelObject*)arg)->df_obj->df),
-                    &result[0]);
-            }
-            math::blas_dmul(1./self->unitDFProjection, result);
             return toPyArray(result);
         }
 
@@ -8854,7 +8839,7 @@ public:
 
     /// vectorized evaluation of Python function for several points at once
     /// (making sure it invokes Python callback from a single thread at a time)
-    virtual void evalmany(const size_t npoints, const double vars[], double values[]) const
+    virtual void evalMany(const size_t npoints, const double vars[], double values[]) const
     {
         PyAcquireGIL lock;
         bool typeerror   = false;
@@ -8893,7 +8878,7 @@ public:
     }
     /// same for one point (not used by integration/sampling routines, but required by the interface)
     virtual void eval(const double vars[], double values[]) const {
-        evalmany(1, vars, values);
+        evalMany(1, vars, values);
     }
     virtual unsigned int numVars()   const { return nvars; }
     virtual unsigned int numValues() const { return 1; }

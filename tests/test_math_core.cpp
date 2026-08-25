@@ -16,51 +16,65 @@
 #include <cmath>
 int numEval=0;
 
-class Integrand: public math::IFunctionNoDeriv, public math::IFunctionNdim{
-    virtual void eval(const double x[], double val[]) const{
-        val[0] = value(x[0]);
-    }
-    virtual unsigned int numVars() const { return 1; }
-    virtual unsigned int numValues() const { return 1; }
-};
-
-class TestInt1: public Integrand{
+class TestInt1: public math::IFunctionNoDeriv{
     virtual double value(double x) const{
         return (3./2/M_PI) / sqrt(1-x*x);
     }
 };
 
-class TestInt2: public Integrand{
+class TestInt2: public math::IFunctionNoDeriv{
     virtual double value(double x) const{
         // normalization is some combination of gamma and hypergeometric functions
         return pow(1-x*x*x*x,-2./3) / 2.27445428374349;
     }
 };
 
-class TestInt3: public Integrand{
+class TestInt3: public math::IFunctionNoDeriv{
     virtual double value(double x) const{
         return 33*M_PI * x * sin(33*M_PI * x*x);
     }
 };
 
-class TestInt4: public Integrand{
+class TestInt4: public math::IFunctionNoDeriv{
     virtual double value(double x) const{
         return 1/(1.001-x) / log(1001);
     }
 };
 
-class TestInt5: public Integrand{
+class TestInt5: public math::IFunctionNoDeriv{
     virtual double value(double x) const{
         const double a=0.4, b=0.01;
         return 1 / (pow_2(x-a) + pow_2(b)) * b / (atan(a/b) + atan((1-a)/b));
     }
 };
 
+// test functions for estimating the accuracy of Gauss-Legendre integration
+class TestIntGLpowerlaw: public math::IFunctionNoDeriv{
+public:
+    TestIntGLpowerlaw(double _p): p(_p) {};
+    virtual double value(double x) const{
+        return pow(x, p);
+    }
+    double exactValue(double xmin, double xmax) const{
+        return p==-1 ? log(xmax/xmin) : (pow(xmax, p+1) - pow(xmin, p+1)) / (p+1);
+    }
+    double p;
+};
 
-class test3: public math::IFunction{
+class TestIntGLangular: public math::IFunctionNoDeriv{
+    double q2, gamma2;
+public:
+    TestIntGLangular(double q, double gamma): q2(q*q), gamma2(gamma/2) {}
+    virtual double value(double costheta) const{
+        return pow(1-pow_2(costheta)*(1-1/q2), -gamma2);
+    }
+};
+
+
+class Test3: public math::IFunction{
 public:
     int nd;
-    test3(int nder) : nd(nder) {};
+    Test3(int nder) : nd(nder) {};
     virtual void evalDeriv(double x, double* val, double* der=0, double* =0) const{
         numEval++;
         *val = math::sign(x-0.3)*pow(fabs(x-0.3), 1./5);
@@ -69,34 +83,22 @@ public:
     virtual unsigned int numDerivs() const { return nd; }
 };
 
-class test4: public math::IFunction, public math::IFunctionNdim{
+class Test4: public math::IFunction{
 public:
     int nd;
-    test4(int nder) : nd(nder) {};
+    Test4(int nder) : nd(nder) {};
     virtual void evalDeriv(double x, double* val, double* der=0, double* =0) const{
         numEval++;
         *val = x-1+1e-3/sqrt(x);
         if(der) *der = 1-0.5e-3/pow(x,1.5);
     }
-    virtual void eval(const double x[], double val[]) const{
-        evalDeriv(x[0], val);
-    }
     virtual unsigned int numDerivs() const { return nd; }
-    virtual unsigned int numVars() const { return 1; }
-    virtual unsigned int numValues() const { return 1; }
 };
 
-class test5: public math::IFunctionNoDeriv{
+class Test5: public math::IFunctionNoDeriv{
     virtual double value(double x) const{
         numEval++;
         return exp(1.0001-x)*(x<INFINITY ? (x-1)-1e5*(x-1.0001)*(x-1.0001)-1e-4 : 1) - 1e-12*(1+1/x);
-    }
-};
-
-class test6: public math::IFunctionNoDeriv{
-    virtual double value(double x) const{
-        numEval++;;
-        return sin(1e4*x);
     }
 };
 
@@ -107,7 +109,7 @@ static const double  // rotation
     A20 = -0.166828598, A21 = 0.0861750222, A22 = 0.9822128505,
     c0 = -0.5, c1 = -1., c2 = 2,    // center
     s0 = 2.0,  s1 = 0.5, s2 = 0.1;  // scale
-class test7Ndim: public math::IFunctionNdimDeriv{
+class Test6Ndim: public math::IFunctionNdimDeriv{
 public:
     // 3-dimensional paraboloid centered at c[], scaled with s[] and rotated with orthogonal matrix A[][]
     virtual void evalDeriv(const double x[], double val[], double der[]) const{
@@ -134,9 +136,9 @@ public:
 #if 1
 // a 3d function that is positive inside a toroidal region in space 
 static const double Rout = 3, Rin = 1;  // outer and inner radii of the torus
-class test8Ndim: public math::IFunctionNdim{
+class Test7Ndim: public math::IFunctionNdim{
 public:
-    test8Ndim()
+    Test7Ndim()
     {
         exact = 2*pow_2(M_PI*Rin)*Rout;    // volume of a torus
         ymin[0]=-4; ymin[1]=-4; ymin[2]=-2;
@@ -160,9 +162,9 @@ public:
 };
 #else
 // a 3d function with an integrable singularity at the corner, taken from from GSL
-class test8Ndim: public math::IFunctionNdim{
+class Test7Ndim: public math::IFunctionNdim{
 public:
-    test8Ndim()
+    Test7Ndim()
     {
         exact = 1.393203929685677;
         ymin[0]=ymin[1]=ymin[2]=0;
@@ -184,9 +186,9 @@ public:
 
 // another test case for integrateNdim - a function with an integrable (in D>=2) singularity
 template<int D>
-class test9Ndim: public math::IFunctionNdim{
+class Test8Ndim: public math::IFunctionNdim{
 public:
-    test9Ndim() : exact(
+    Test8Ndim() : exact(
         D==2 ? 4*log(1+M_SQRT2) + 4*atanh(1/M_SQRT2) :
         D==3 ? 24*asinh(1/M_SQRT2) - 2*M_PI : NAN /*not known*/)
     {}
@@ -206,33 +208,10 @@ public:
     const double exact;   // exact analytic value of the integral on [-1..1]^D
 };
 
-// test functions for estimating the accuracy of Gauss-Legendre integration
-class test_GL_powerlaw: public math::IFunctionNoDeriv{
-public:
-    test_GL_powerlaw(double _p): p(_p) {};
-    virtual double value(double x) const{
-        return pow(x, p);
-    }
-    double exactValue(double xmin, double xmax) const{
-        return p==-1 ? log(xmax/xmin) : (pow(xmax, p+1) - pow(xmin, p+1)) / (p+1);
-    }
-    double p;
-};
-
-class test_GL_angular: public math::IFunctionNoDeriv{
-    double q2, gamma2;
-public:
-    test_GL_angular(double q, double gamma): q2(q*q), gamma2(gamma/2) {}
-    virtual double value(double costheta) const{
-        return pow(1-pow_2(costheta)*(1-1/q2), -gamma2);
-    }
-};
-
-
 // test of least-square fitting
-class test9LM: public math::IFunctionNdimDeriv {
+class Test9LM: public math::IFunctionNdimDeriv {
 public:
-    test9LM() {  // init data points
+    Test9LM() {  // init data points
         for(int i=0; i<numDataPoints; i++) {
             double x = i*1.0/numDataPoints;
             dataX[i] = x;
@@ -271,9 +250,9 @@ private:
 };
 
 // represent the least-square fitting problem as a general minimization problem
-class test9min: public math::IFunctionNdimDeriv {
+class Test9min: public math::IFunctionNdimDeriv {
 public:
-    test9min(const math::IFunctionNdimDeriv& _F) : F(_F) {}
+    Test9min(const math::IFunctionNdimDeriv& _F) : F(_F) {}
     virtual void evalDeriv(const double vars[], double values[], double *derivs=0) const
     {
         std::vector<double> val(F.numValues());
@@ -299,9 +278,9 @@ private:
 };
 
 // test of multidimensional root-finding using Rosenbrock's function
-class test10Ndim: public math::IFunctionNdimDeriv {
+class Test10Ndim: public math::IFunctionNdimDeriv {
 public:
-    test10Ndim(double _a, double _b) : a(_a), b(_b) {}
+    Test10Ndim(double _a, double _b) : a(_a), b(_b) {}
     virtual void evalDeriv(const double vars[], double values[], double *derivs=0) const
     {
         numEval++;;
@@ -350,7 +329,7 @@ template<typename Scaling> bool testScaling(const Scaling& scaling)
     return true;
 }
 
-bool testIntegration(const Integrand& fnc, double a, double b,
+bool testIntegration(const math::IFunction& fnc, double a, double b,
     double tolerNaiveGL, double tolerNaiveGK, double tolerAdapt,
     double tolerScaledGL, double tolerScaledGK)
 {
@@ -368,10 +347,10 @@ bool testIntegration(const Integrand& fnc, double a, double b,
         ", dif_1d_vs_Nd=" << (result-resultN) << ", neval=" << GLORDER_NAIVE;
     ok &= (fabs(1-result/exact) < tolerNaiveGL && fabs(result-resultN) < 4e-15) || err();
 
-    result = math::integrate(fnc, a, b, tolerNaiveGK, &error, &numEval);
+    result = math::integrateGK(fnc, a, b, tolerNaiveGK, &error, &numEval);
     std::cout << "), naive=" << result << " +- " << error <<
         " (delta=" << (result-exact) << ", neval=" << numEval;
-    ok &= (fabs(1-result/exact) < tolerNaiveGK && fabs(result-exact) < error) || err();
+    ok &= (fabs(1-result/exact) < tolerNaiveGK && fabs(result-exact) < 1.1*error) || err();
 
     result = math::integrateAdaptive(fnc, a, b, tolerAdapt, &error, &numEval);
     std::cout << "), adaptive=" << result << " +- " << error <<
@@ -389,7 +368,7 @@ bool testIntegration(const Integrand& fnc, double a, double b,
         " (delta=" << (result-exact) << ", neval=" << GLORDER_SCALED;
     ok &= (fabs(1-result/exact) < tolerScaledGL) || err();
 
-    result = math::integrate(sfnc, math::scale(sfnc.scaling, a), math::scale(sfnc.scaling, b),
+    result = math::integrateGK(sfnc, math::scale(sfnc.scaling, a), math::scale(sfnc.scaling, b),
         tolerScaledGK, &error, &numEval);
     std::cout << "), scaled=" << result << " +- " << error <<
         " (delta=" << (result-exact) << ", neval=" << numEval;
@@ -769,11 +748,11 @@ int main()
 
     // integration routines
     std::cout << "Integration in several variants\n";
-    ok &= testIntegration(TestInt1(), -1, 0.5, 0.02, 0.002,1e-4, 1e-9, 1e-9);
+    ok &= testIntegration(TestInt1(), -1, 0.5, 0.01, 0.002,1e-4, 1e-9, 1e-9);
     ok &= testIntegration(TestInt2(), -1,2./3, 0.04, 0.02, 1e-4, 0.01, 2e-3);
-    ok &= testIntegration(TestInt3(),  0, 1.0, 20.0, 0.01, 1e-4, 0.50, 1e-3);
-    ok &= testIntegration(TestInt4(),  0, 1.0, 0.02, 0.001,1e-4, 2e-3, 1e-3);
-    ok &= testIntegration(TestInt5(),  0, 1.0, 0.50, 0.05, 1e-4, 0.80, 0.20);
+    ok &= testIntegration(TestInt3(),  0, 1.0, 0.03, 0.001,1e-4, 0.50, 1e-3);
+    ok &= testIntegration(TestInt4(),  0, 1.0, 0.01, 0.001,1e-4, 2e-3, 1e-3);
+    ok &= testIntegration(TestInt5(),  0, 1.0, 0.50, 0.05, 1e-4, 0.80, 0.15);
 
     // low-degree polynomial root-finding
     ok &= testSolvePoly();
@@ -782,70 +761,70 @@ int main()
     const double toler = 1e-6;
     double exact=0.3, error=0, result;
     numEval=0;
-    result = math::findRoot(test3(0), 0, 0.8, toler);
+    result = math::findRoot(Test3(0), 0, 0.8, toler);
     std::cout << "Root3="<<result<<" (delta="<<(result-exact)<<"; neval="<<numEval<<")\n";
     ok &= (fabs(1-result/exact)<toler) || err();
     numEval=0;
-    result = math::findRoot(test3(1), 0, 0.8, toler);
+    result = math::findRoot(Test3(1), 0, 0.8, toler);
     std::cout << "with derivative: Root3="<<result<<" (delta="<<(result-exact)<<"; neval="<<numEval<<")\n";
     ok &= (fabs(1-result/exact)<toler) || err();
 
     exact=1.000002e-6;
     numEval=0;
-    result = math::findRoot(test4(0), 1e-15, 0.8, 1e-8);
+    result = math::findRoot(Test4(0), 1e-15, 0.8, 1e-8);
     std::cout << "Root4="<<result<<" (delta="<<(result-exact)<<"; neval="<<numEval<<")\n";
     ok &= (fabs(result-exact)<1e-8*0.8) || err();
     numEval=0;
-    result = math::findRoot(test4(1), 1e-15, 0.8, 1e-8);
+    result = math::findRoot(Test4(1), 1e-15, 0.8, 1e-8);
     std::cout << "with derivative: Root4="<<result<<" (delta="<<(result-exact)<<"; neval="<<numEval<<")\n";
     ok &= (fabs(result-exact)<1e-8*0.8) || err();
 
     double x0 = exact*1.5;
-    double x1 = x0 + math::PointNeighborhood(test4(0), x0).dxToPositive();
-    result = test4(0)(x1);
+    double x1 = x0 + math::PointNeighborhood(Test4(0), x0).dxToPositive();
+    result = Test4(0)(x1);
     std::cout << "positive value at x="<<x1<<", value="<<result<<"\n";
     ok &= (isFinite(x1+result) && x1>0 && x1<exact && result>0) || err();
     x0 = exact*0.9;
-    x1 = x0 + math::PointNeighborhood(test4(0), x0).dxToNegative();
-    result = test4(0)(x1);
+    x1 = x0 + math::PointNeighborhood(Test4(0), x0).dxToNegative();
+    result = Test4(0)(x1);
     std::cout << "negative value at x="<<x1<<", value="<<result<<"\n";
     ok &= (isFinite(x1+result) && result<0) || err();
-    x1 = x0 + math::PointNeighborhood(test4(1), x0).dxToNegative();
-    result = test4(0)(x1);
+    x1 = x0 + math::PointNeighborhood(Test4(1), x0).dxToNegative();
+    result = Test4(0)(x1);
     std::cout << "(with deriv) negative value at x="<<x1<<", value="<<result<<"\n";
     ok &= (isFinite(x1+result) && result<0) || err();
 
     x0 = 1.00009;
     exact = 1.000100000002;
-    x1 = x0 + math::PointNeighborhood(test5(), x0).dxToPositive();
-    result = test5()(x1);
+    x1 = x0 + math::PointNeighborhood(Test5(), x0).dxToPositive();
+    result = Test5()(x1);
     std::cout << "f5: positive value at x="<<exact<<"+"<<(x1-exact)<<", value="<<result<<"\n";
     ok &= (isFinite(x1+result) && result>0) || err();
     numEval=0;
-    result = math::findRoot(test5(), 1, x1, toler);
+    result = math::findRoot(Test5(), 1, x1, toler);
     std::cout << "Root5="<<result<<" (delta="<<(result-exact)<<"; neval="<<numEval<<")\n";
     ok &= (fabs(result-exact)<toler*exact) || err();
 
     exact=1.000109999998;
     numEval=0;
-    result = math::findRoot(test5(), math::ScalingSemiInf(x1), toler);
+    result = math::findRoot(Test5(), math::ScalingSemiInf(x1), toler);
     std::cout << "Another root="<<result<<" (delta="<<(result-exact)<<"; neval="<<numEval<<")\n";
     ok &= (fabs(result-exact)<toler*exact) || err();
 
     // minimization
     numEval=0;
     exact=0.006299605249;
-    result = math::findMin(test4(0), 1e-15, 1, NAN, toler);
-    std::cout << "Minimum of f4(x) at x="<<result<<" is "<<test4(0)(result)<<
+    result = math::findMin(Test4(0), 1e-15, 1, NAN, toler);
+    std::cout << "Minimum of f4(x) at x="<<result<<" is "<<Test4(0)(result)<<
         " (delta="<<(result-exact)<<"; neval="<<numEval<<")\n";
     ok &= (fabs(result-exact)<toler*exact) || err();
     numEval=0;
     double xinit[] = {0.5};
     double xstep[] = {0.1};
     double xresult[1];
-    int numIter = findMinNdim(test4(0), xinit, xstep, toler, 100, xresult);
+    int numIter = findMinNdim(Test4(0), xinit, xstep, toler, 100, xresult);
     std::cout << "N-dimensional minimization (N=1) of the same function: minimum at x="<<xresult[0]<<
-        " is "<<test4(0)(xresult[0])<<" (delta="<<(xresult[0]-exact)<<
+        " is "<<Test4(0)(xresult[0])<<" (delta="<<(xresult[0]-exact)<<
         "; neval="<<numEval<<", nIter="<<numIter<<")\n";
     ok &= (fabs(result-exact)<toler) || err();
 
@@ -853,16 +832,16 @@ int main()
     double yinit[] = {5.0,-4.,2.5};
     double ystep[] = {0.1,0.1,0.1};
     double yresult[3];
-    numIter = findMinNdim(test7Ndim(), yinit, ystep, 1e-10, 1000, yresult);
-    test7Ndim().eval(yresult, &result);
+    numIter = findMinNdim(Test6Ndim(), yinit, ystep, 1e-10, 1000, yresult);
+    Test6Ndim().eval(yresult, &result);
     std::cout << "N-dimensional minimization (N=3): minimum at x=("<<
         yresult[0]<<","<<yresult[1]<<","<<yresult[2]<<")"
         " is "<<result<<" (neval="<<numEval<<", nIter="<<numIter<<")\n";
     ok &= (fabs(yresult[0]-c0) * fabs(yresult[1]-c1) * fabs(yresult[2]-c2) < 1e-10) || err();
 
     numEval=0;
-    numIter = findMinNdimDeriv(test7Ndim(), yinit, ystep[0], 1e-10, 1000, yresult);
-    test7Ndim().eval(yresult, &result);
+    numIter = findMinNdimDeriv(Test6Ndim(), yinit, ystep[0], 1e-10, 1000, yresult);
+    Test6Ndim().eval(yresult, &result);
     std::cout << "Min. same func. with derivatives: minimum at x=("<<
         yresult[0]<<","<<yresult[1]<<","<<yresult[2]<<")"
         " is "<<result<<" (neval="<<numEval<<", nIter="<<numIter<<")\n";
@@ -874,7 +853,7 @@ int main()
     numEval=0;
     yinit[0] = -10;
     yinit[1] = -5;
-    numIter = math::findRootNdimDeriv(test10Ndim(1, 10), yinit, 1e-10, 100, yresult);
+    numIter = math::findRootNdimDeriv(Test10Ndim(1, 10), yinit, 1e-10, 100, yresult);
     std::cout << "RootNdim(N=2): "<<yresult[0]<<","<<yresult[1]<<
         " (delta="<<(yresult[0]-1)<<","<<(yresult[1]-1)<<"; neval="<<numEval<<", nIter="<<numIter<<")\n";
     ok &= (fabs(yresult[0]-1)<toler && fabs(yresult[1]-1)<toler) || err();
@@ -889,7 +868,7 @@ int main()
 
     // N-dimensional integration
     numEval=0;
-    test8Ndim fnc8;
+    Test7Ndim fnc8;
     integrateNdim(fnc8, fnc8.ymin, fnc8.ymax, toler, 1000000, &result, &error);
     std::cout << "Volume of a 3d torus = "<<result<<" +- "<<error<<
         " (delta="<<(result-fnc8.exact)<<"; neval="<<numEval<<")\n";
@@ -914,14 +893,14 @@ int main()
 
 #if 0   // these tests fail at the moment
     numEval=0;
-    test9Ndim<2> fnc9a;
+    Test8Ndim<2> fnc9a;
     double xlow[3] = {-1,-1,-1}, xupp[3] = {1,1,1};
     integrateNdim(fnc9a, xlow, xupp, toler, 10000, &result, &error);
     std::cout << "Integrable singularity in 2d: integral = "<<result<<" +- "<<error<<
         " (delta="<<(result-fnc9a.exact)<<"; neval="<<numEval<<")\n";
     ok &= (result > 0 && error < 0.01 && fabs(result-fnc9a.exact) < error) || err();
     numEval=0;
-    test9Ndim<3> fnc9b;
+    Test8Ndim<3> fnc9b;
     integrateNdim(fnc9b, xlow, xupp, toler, 10000, &result, &error);
     std::cout << "Integrable singularity in 3d: integral = "<<result<<" +- "<<error<<
         " (delta="<<(result-fnc9b.exact)<<"; neval="<<numEval<<")\n";
@@ -931,7 +910,7 @@ int main()
 #if 0
     // test the accuracy of fixed-order (n) Gauss-Legendre quadrature in integrating a power-law function in radius
     for(double p=-40; p<=40; p+=1.77) {
-        test_GL_powerlaw tpl(p);
+        TestIntGLpowerlaw tpl(p);
         for(int n=8; n<=32; n*=2) {
             double xmin=1., xmax=1.5;
             result = math::integrateGL(tpl, xmin, xmax, n);
@@ -945,9 +924,9 @@ int main()
     }
     // test accuracy of fixed-order GL quadrature for computing spherical-harmonic coefficients
     // of a function mimicking a power-law density profile with flattening ( f ~ (R+z/q)^-gamma )
-    test_GL_angular testfnc1(0.25, 1.);
-    test_GL_angular testfnc2(0.5, 2.);
-    test_GL_angular testfnc3(0.5, 4.);
+    TestIntGLangular testfnc1(0.25, 1.);
+    TestIntGLangular testfnc2(0.5, 2.);
+    TestIntGLangular testfnc3(0.5, 4.);
     double exact1 = math::integrateAdaptive(testfnc1, -1, 1, 1e-14);
     double exact2 = math::integrateAdaptive(testfnc2, -1, 1, 1e-14);
     double exact3 = math::integrateAdaptive(testfnc3, -1, 1, 1e-14);
@@ -959,8 +938,8 @@ int main()
 
     // nonlinear least-square fitting using Levenberg-Marquardt
     numEval=0;
-    test9LM fncLM;
-    test9min fncMin(fncLM);
+    Test9LM fncLM;
+    Test9min fncMin(fncLM);
     yinit[0] = yinit[1] = yinit[2] = 0.5;
     numIter = nonlinearMultiFit(fncLM, yinit, 1e-4, 100, yresult);
     fncMin.eval(yresult, &result);

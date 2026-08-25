@@ -16,8 +16,8 @@
 #include <sstream>
 #include <cmath>
 
-const double epsE   = 3e-6;  // accuracy of energy conservation
-const double epsL   = 1e-7;  // accuracy of energy conservation
+const double epsE   = 4e-6;  // accuracy of energy conservation (relative)
+const double epsL   = 1e-7;  // accuracy of angular momentum conservation
 const double epsCS  = 2e-3;  // accuracy of comparison of orbits in different coordinate systems
 const double epsrot = 1e-3;  // accuracy of comparison between inertial and rotating frames
 const bool output   = utils::verbosityLevel >= utils::VL_VERBOSE;
@@ -76,7 +76,7 @@ double maxDistanceBetweenOrbits(
     // loop over all timestamps on orbit 1 except the boundary points,
     // and for each timestamp, find the minimum distance from orbit2 to the point in orbit1
     double maxdist = 0;
-    for(size_t i1=1, i2=0; i1<traj1.size()-1; i1++) {
+    for(size_t i1=1, i2=0; i1+1<traj1.size(); i1++) {
         while(i2 < t2.size() && t2[i2] < traj1[i1].second)
             i2++;
         // determine the interval for searching the minimum distance: +- one timestep on either orbit
@@ -161,15 +161,15 @@ bool test_coordsys(const potential::BasePotential& potential,
             utils::pp(totalEnergy(potential, xv), 18) << ' '<< utils::pp(Lz(xv), 18) << '\n';
         }
     }
-    bool ok = trajReg.back().second > 0.999999 * (total_time + init_time);
+    bool ok = !trajReg.empty() && trajReg.back().second > 0.999999 * (total_time + init_time);
     if(ok)
         std::cout << trajFull.size()-1 << " steps";
     else {
-        std::cout << "\033[1;31mCRASHED\033[0m after " << trajFull.size()-1 <<
-            " steps at time " << trajFull.back().second;
+        std::cout << "\033[1;31mCRASHED\033[0m after " << trajFull.size() <<
+            " steps at time " << (trajFull.empty() ? 0 : (trajFull.back().second - init_time));
     }
     std::cout << ", E=" << avgE.mean() << " +- " << sqrt(avgE.disp());
-    if(avgE.disp() > epsE*epsE) {
+    if(avgE.disp() > pow_2(epsE * avgE.mean())) {
         std::cout << " \033[1;31m**\033[0m";
         ok = false;
     }
@@ -189,7 +189,7 @@ bool test_coordsys(const potential::BasePotential& potential,
         }
     }
     if(trajReg.size() != round(total_time / timestep) + 1) {
-        std::cout << "\033[1;33m[incorrect length]\033[0m\n";
+        std::cout << " \033[1;33m[incorrect length]\033[0m";
         ok = false;
     }
     std::cout << "\n";

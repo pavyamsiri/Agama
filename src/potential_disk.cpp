@@ -199,14 +199,15 @@ double DiskParam::mass() const
         }
     }
     return 2*M_PI * pow_2(scaleRadius) * surfaceDensity *
-        math::integrate(DiskDensityRadialRichExpIntegrand(*this), 0, 1, 1e-6);
+        math::integrateGK(DiskDensityRadialRichExpIntegrand(*this), 0, 1, 1e-6);
 }
 
 double DiskDensity::densityCyl(const coord::PosCyl &pos, double /*time*/) const
 {
-    double h;
+    double h, f;
     verticalFnc->evalDeriv(pos.z, NULL, NULL, &h);
-    return radialFnc->value(pos.R) * h;
+    radialFnc  ->evalDeriv(pos.R, &f);
+    return f*h;
 }
 
 double DiskAnsatz::densityCyl(const coord::PosCyl &pos, double /*time*/) const

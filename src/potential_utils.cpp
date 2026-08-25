@@ -16,10 +16,6 @@ namespace potential{
 
 namespace{  // internal routines
 
-/// if defined, use the integrateNdim routine for computing the projected density;
-/// it takes a somewhat larger number of evaluations, but performs vectorized calls to density()
-#define PROJ_DENSITY_VECTORIZED
-
 /// relative accuracy of integration of projected density/potential
 static const double EPSREL_DENSITY_INT = 1e-4;
 
@@ -57,7 +53,7 @@ static const double GLRATIO = 2.0;
 // --------- computation of projected density, potential and its derivatives --------- //
 
 /// helper class for integrating the density along the line of sight
-class ProjectedDensityIntegrand: public math::IFunctionNoDeriv, public math::IFunctionNdim {
+class ProjectedDensityIntegrand: public math::IFunctionNdim {
     const BaseDensity& dens;  ///< the density model
     const double X, Y, R;     ///< coordinates in the image plane
     const coord::Orientation& orientation; ///< converion between intrinsic and observed coords
@@ -67,17 +63,14 @@ public:
         const coord::Orientation& _orientation, double _time)
     :
         dens(_dens), X(pos.X), Y(pos.Y), R(sqrt(X*X+Y*Y)), orientation(_orientation), time(_time) {}
-    virtual double value(double s) const
+    virtual void eval(const double vars[], double values[]) const
     {
         // unscale the input scaled coordinate, which lies in the range (0..1);
-        double dZds, Z = unscale(math::ScalingDoubleInf(R), s, &dZds);
-        return nan2num(dens.density(orientation.fromRotated(coord::PosCar(X, Y, Z)), time) * dZds);
-    }
-    virtual void eval(const double vars[], double values[]) const {
-        values[0] = value(vars[0]);
+        double dZds, Z = unscale(math::ScalingDoubleInf(R), vars[0], &dZds);
+        values[0] = nan2num(dens.density(orientation.fromRotated(coord::PosCar(X, Y, Z)), time) * dZds);
     }
     // vectorized version of the integrand
-    virtual void evalmany(const size_t npoints, const double vars[], double values[]) const
+    virtual void evalMany(const size_t npoints, const double vars[], double values[]) const
     {
         if(npoints==0)
             return;
@@ -87,7 +80,7 @@ public:
             double Z = unscale(math::ScalingDoubleInf(R), vars[i], &dZds[i]);
             points[i] = orientation.fromRotated(coord::PosCar(X, Y, Z));
         }
-        dens.evalmanyDensityCar(npoints, points, values, time);
+        dens.evalManyDensityCar(npoints, points, values, time);
         for(size_t i=0; i<npoints; i++)
             values[i] = nan2num(values[i] * dZds[i]);
     }
@@ -159,11 +152,11 @@ public:
     {}
 
     virtual void eval(const double vars[], double values[]) const {  // unused
-        evalmany(1, vars, values);
+        evalMany(1, vars, values);
     }
 
     // vectorized version of the integrand
-    virtual void evalmany(const size_t npoints, const double vars[], double values[]) const
+    virtual void evalMany(const size_t npoints, const double vars[], double values[]) const
     {
         // The input point(s) are always taken from one octant in the xyz space,
         // but depending on the symmetry of the density profile, we may need to add mirrored points.
@@ -182,6 +175,7 @@ public:
         // 1. unscale the input variables and create mirrored copies of each point, if necessary
         for(size_t i=0; i<npoints; i++) {
             coord::PosCar postmp = toPosCar(unscaleCoords(&vars[i*3], /*output*/ &jac[i]));
+            double r2 = pow_2(postmp.x) + pow_2(postmp.y) + pow_2(postmp.z);
             postmp.x *= ax;
             postmp.y *= ay;
             postmp.z *= az;
@@ -202,10 +196,28 @@ public:
                 postmp.z *= -1;
                 pos[i*8+7] = orientation.fromRotated(postmp);
             }
+            // If the density falls off slower than r^-5, the integrals for the inertia tensor
+            // formally do not converge. We would still like to produce a sensible estimate of
+            // the shape, which can be achieved by introducing a tapering at very large radii
+            // (assuming that the axis ratios actually reach some asymptotic limit at r-->infinity).
+            // The choice of the tapering radius is motivated by the following consideration:
+            // the biggest problem is not the divergence of the integrals by itself, but the fact
+            // that at large radii the density computation may underflow to zero.
+            // When computing the integral over a subregion (in scaled variables) encompassing
+            // very large radii, the integrand will be zero at some points of this subregion,
+            // but very large at other points, ruining the error estimate and forcing this
+            // subregion to be refined over and over again.
+            // For the critical value of the outer slope r^-5, the density at Rt = TAPERING_RADIUS
+            // is Rt^-5 * (some normalization), and we need Rt to be such that the density still
+            // does not underflow for any realistic value of its normalization.
+            // (Of course, if the density actually falls to zero beyond some radius smaller than Rt,
+            // this is not a problem since it will be zero at all points of the subregion).
+            const double TAPERING_RADIUS = 1e50;
+            jac[i] *= exp(-sqrt(r2) / TAPERING_RADIUS);
         }
 
         // 2. compute the density for all these points at once
-        dens.evalmanyDensityCar(npoints * ncopies, pos, val);
+        dens.evalManyDensityCar(npoints * ncopies, pos, val);
 
         // 3. multiply by jacobian and output the density weighted by x_i x_j,
         // accounting for all mirrored copies of the input point
@@ -479,16 +491,10 @@ public:
 double projectedDensity(const BaseDensity& dens, const coord::PosProj& pos,
     const coord::Orientation& orientation, double time)
 {
-#ifndef PROJ_DENSITY_VECTORIZED
-    return math::integrateAdaptive(ProjectedDensityIntegrand(dens, X, Y, orientation),
-        0, 1, EPSREL_DENSITY_INT);
-#else
-    // use integrateNdim as the adaptive integration engine with vectorization
     double xlower[1] = {0}, xupper[1] = {1}, result;
     math::integrateNdim(ProjectedDensityIntegrand(dens, pos, orientation, time),
         xlower, xupper, EPSREL_DENSITY_INT, /*maxNumEval*/ MAX_NUM_EVAL_INT, &result);
     return result;
-#endif
 }
 
 void projectedEval(
@@ -1195,7 +1201,7 @@ PhaseVolume::PhaseVolume(const math::IFunction& pot)
     // roundoff/cancellation errors due to finite precision of floating-point arithmetic
     double prevPhi = Phi0;
     for(size_t i=0; i<gridr.size(); ) {
-        double E = pot.value(gridr[i]);
+        double E = pot(gridr[i]);
         if(i>0 && !(E>=gridE[i-1]))
             throw std::invalid_argument(
                 "PhaseVolume: potential is non-monotonic at r="+utils::toString(gridr[i]));
@@ -1229,7 +1235,7 @@ PhaseVolume::PhaseVolume(const math::IFunction& pot)
             // the integration variable y ranges from 0 to 1, and r(y) is defined below
             double y = glnodes[k];
             double r = gridr[i] - pow_2(1-y) * deltar;
-            double E = pot.value(r);
+            double E = pot(r);
             // contribution of this point to each integral on the current segment, taking into account
             // the transformation of variable y -> r  and the common weight factor r^2
             double weight = glweights[k] * 2*(1-y) * deltar * pow_2(r);

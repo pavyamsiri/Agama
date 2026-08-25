@@ -238,6 +238,9 @@ public:
     }
 
     virtual unsigned int numDerivs() const { return 2; }
+
+    // avoid warning about hiding an overloaded virtual function (although it is actually not used)
+    using IFunctionNdim::eval;
 };
 
 
@@ -272,7 +275,7 @@ void createSphericalDF(
         // 2b. check the grid and convert it into unscaled Phi and r
         for(size_t i=0; i<gridr.size(); ) {
             gridr[i]   = exp(gridr[i]);   // unscale from log(r) to r
-            double Phi = potential.value(gridr[i]);
+            double Phi = potential(gridr[i]);
             // throw away grid nodes if they are too closely spaced (if the difference between adjacent
             // potential values is dominated by roundoff / cancellation errors)
             if(Phi > prevPhi * (1-MIN_REL_DIFFERENCE)) {

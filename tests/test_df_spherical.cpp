@@ -453,11 +453,11 @@ bool test(const potential::BasePotential& pot, double beta=0, double r_a=INFINIT
         comf  *= pow(ints.L, 2*beta);
         double splf=0, sphf=0, fitf1=0, fitf2=0, dfdens=0, sphdens=0, sphdisp=0, difE=0, difEE=0;
         if(isotropic) {
-            splf   = splDF ->value(trueh);
+            splf   = (*splDF)(trueh);
             model->I0.evalDeriv(trueh, NULL, &sphf);  // DF in the spherical model is -g dI0/dh
             sphf  *= -trueg;
-            fitf1  = fitDF1->value(trueh);
-            fitf2  = fitDF2->value(trueh);
+            fitf1  = (*fitDF1)(trueh);
+            fitf2  = (*fitDF2)(trueh);
             dfdens = gridRhoDF[i];
             sphdens= model->density(truePhi);
             sphdisp= model->velDisp(truePhi);

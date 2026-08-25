@@ -39,7 +39,7 @@ std::string testLess(double val, double limit, bool &condition)
 }
 
 // provides the integral of sin(x)*x^n
-class testfncsin: public math::IFunctionIntegral {
+class TestFncSin: public math::IFunctionIntegral {
     virtual double integrate(double x1, double x2, int n=0) const {
         return antideriv(x2,n)-antideriv(x1,n);
     }
@@ -57,9 +57,9 @@ class testfncsin: public math::IFunctionIntegral {
 };
 
 // provides the integrand for numerical integration of sin(x)*f(x)
-class testfncintsin: public math::IFunctionNoDeriv {
+class TestFncIntSin: public math::IFunctionNoDeriv {
 public:
-    testfncintsin(const math::IFunction& _f): f(_f) {};
+    TestFncIntSin(const math::IFunction& _f): f(_f) {};
     virtual double value(const double x) const {
         return sin(x) * f(x);
     }
@@ -68,9 +68,9 @@ private:
 };
 
 // provides the integrand for numerical integration of f(x)^2
-class squaredfnc: public math::IFunctionNoDeriv {
+class SquaredFnc: public math::IFunctionNoDeriv {
 public:
-    squaredfnc(const math::IFunction& _f): f(_f) {};
+    SquaredFnc(const math::IFunction& _f): f(_f) {};
     virtual double value(const double x) const {
         return pow_2(f(x));
     }
@@ -81,7 +81,7 @@ private:
 //#define TESTFNC1D_SMOOTH
 
 // provides a function of 1 variable to interpolate
-class testfnc1d: public math::IFunction {
+class TestFnc1d: public math::IFunction {
 public:
     void evalDeriv(const double x, double* val, double* der, double* der2, double* der3) const
     {
@@ -122,7 +122,7 @@ public:
 };
 
 // provides a function to interpolate via log-spline
-class testfnclog: public math::IFunction {
+class TestFncLog: public math::IFunction {
 public:
     virtual void evalDeriv(const double x, double* val=NULL, double* der=NULL, double* der2=NULL) const {
         if(val)
@@ -136,7 +136,7 @@ public:
 };
 
 // provides a function of 2 variables to interpolate
-class testfnc2d: public math::IFunctionNdimDeriv {
+class TestFnc2d: public math::IFunctionNdimDeriv {
 public:
     virtual void evalDeriv(const double vars[], double values[], double *derivs=NULL) const
     {
@@ -160,7 +160,7 @@ public:
 };
 
 // provides a function of 3 variables to interpolate
-class testfnc3d: public math::IFunctionNdim {
+class TestFnc3d: public math::IFunctionNdim {
 public:
     virtual void eval(const double vars[], double values[]) const {
         values[0] = (sin(vars[0]+0.5*vars[1]+0.25*vars[2]) * cos(-0.2*vars[0]*vars[1]+vars[2]) + 1) /
@@ -172,7 +172,7 @@ public:
 
 // a function with sharp gradients for testing monotone interpolation
 template<int N>
-class testfncNd: public math::IFunctionNdim, public math::IFunctionNoDeriv {
+class TestFncNd: public math::IFunctionNdim {
     static const int POW = 6;
 public:
     virtual void eval(const double vars[], double values[]) const {
@@ -181,16 +181,13 @@ public:
             sum += pow(vars[i], POW);
         values[0] = exp(-sum);
     }
-    virtual double value(const double x) const {
-        return exp(-pow(x, POW));
-    }
     virtual unsigned int numVars()   const { return N; }
     virtual unsigned int numValues() const { return 1; }
 };
 
 // original function to interpolate and convolve
-//#define testfncorig sin
-double testfncorig(double x) { return tanh((2-fabs(x-4))/0.5)*0.5+0.5; }
+//#define testFncOrig sin
+double testFncOrig(double x) { return tanh((2-fabs(x-4))/0.5)*0.5+0.5; }
 
 /** A normalized asymmetric exponential convolution kernel centered at origin with a scale sigma:
     \f$   f(x) = \exp( x/sigma ) / \sigma  \f$  if x<=0,  otherwise 0
@@ -515,13 +512,13 @@ bool testIntegral(const math::BaseInterpolator1d& f, double x1, double x2)
     double error1 = fabs((result_int-result_ext) / result_ext);
     std::cout << "Ordinary intergral on [" + utils::pp(x1,10) +':'+ utils::pp(x2,10) +
         "]: result=" + utils::pp(result_int,8) + ", error=" + utils::pp(error1,8) + '\n';
-    result_int = f.integrate(x1, x2, testfncsin());
-    result_ext = math::integrateAdaptive(testfncintsin(f), ex1, ex2, 1e-13);
+    result_int = f.integrate(x1, x2, TestFncSin());
+    result_ext = math::integrateAdaptive(TestFncIntSin(f), ex1, ex2, 1e-13);
     double error2 = fabs((result_int-result_ext) / result_ext);
     std::cout << "Weighted intergral on [" + utils::pp(x1,10) +':'+ utils::pp(x2,10) +
         "]: result=" + utils::pp(result_int,8) + ", error=" + utils::pp(error2,8) + '\n';
     result_int = f.integrate(x1, x2, f);
-    result_ext = math::integrateAdaptive(squaredfnc(f), ex1, ex2, 1e-13);
+    result_ext = math::integrateAdaptive(SquaredFnc(f), ex1, ex2, 1e-13);
     double error3 = fabs((result_int-result_ext) / result_ext);
     std::cout << "Integral of f(x)^2 on [" + utils::pp(x1,10) +':'+ utils::pp(x2,10) +
         "]: result=" + utils::pp(result_int,8) + ", error=" + utils::pp(error3,8) + '\n';
@@ -700,7 +697,7 @@ bool testLogScaledSplines()
 {
     const int NNODES=41;
     const double XMIN=1., XMAX=100.;
-    testfnclog fnc;
+    TestFncLog fnc;
     std::vector<double> xnodes = math::createExpGrid(NNODES, XMIN, XMAX);
     xnodes[20] = 10.;  // exact value where the function goes to zero
     std::vector<double> yvalues(NNODES), yderivs(NNODES);
@@ -741,7 +738,7 @@ bool testGaussianIntegral(double x1, double x2, double sigma, int n)
 {
     math::Gaussian gauss(sigma);
     // numerical integration
-    double intnum = math::integrate(math::FncProduct(math::Monomial(n), gauss), x1, x2, 1e-13);
+    double intnum = math::integrateGK(math::FncProduct(math::Monomial(n), gauss), x1, x2, 1e-13);
     // analytic integration provided by the IFunctionIntegral interface
     double intan  = gauss.integrate(x1, x2, n);
     double reldif = (intnum - intan) * 2 / (intnum + intan + 1e-300);
@@ -772,7 +769,7 @@ double getAmplFiniteElement(const math::FiniteElement1d<N>& fe, const math::IFun
     // 0. collect the function values at the nodes of integration grid
     std::vector<double> fncValues(gridSize);
     for(unsigned int p=0; p<gridSize; p++)
-        fncValues[p] = testfncorig(fe.integrPoints()[p]);
+        fncValues[p] = testFncOrig(fe.integrPoints()[p]);
     // 1. compute the projection integrals, using the collected function values, and solve the linear
     // equation to find the amplitudes of the B-spline approximation of the original function
     std::vector<double> pv = fe.computeProjVector(fncValues);
@@ -854,9 +851,9 @@ bool testFiniteElement()
     double err0=0, erc0=0, ert0=0, err1=0, erc1=0, ert1=0, err2=0, erc2=0, ert2=0, err3=0, erc3=0, ert3=0;
     for(int i=0; i<NTEST; i++) {
         double x = XMIN + (XMAX-XMIN) / (NTEST-1) * i,
-        origfnc  = testfncorig(x),
+        origfnc  = testFncOrig(x),
         convfnc  = math::integrateAdaptive(
-            Convolved(x, ExpKernel(SIGMA), math::FncWrapper(testfncorig)), x-XMAX, x-XMIN, 1e-6),
+            Convolved(x, ExpKernel(SIGMA), math::FncWrapper(testFncOrig)), x-XMAX, x-XMIN, 1e-6),
         fem0     = fe0.interp.interpolate(x, am0),
         femconv0 = fe0.interp.interpolate(x, cam0),
         fem2conv0= fe0.interp.interpolate(x, tam0),
@@ -977,7 +974,7 @@ bool test1dSpline()
     const int NSUBINT = 50;
     std::vector<double> yvalues(NNODES), yderivs(NNODES), yderivs2(NNODES);
     std::vector<double> xnodes = math::createUniformGrid(NNODES, XMIN1D, XMAX1D);
-    testfnc1d fnc;   // the original function that we are approximating
+    TestFnc1d fnc;   // the original function that we are approximating
     for(int i=0; i<NNODES; i++)
         fnc.evalDeriv(xnodes[i], &yvalues[i], &yderivs[i], &yderivs2[i]);
 
@@ -1074,7 +1071,7 @@ bool test1dSpline()
         fnc.evalDeriv(x, &origVal, &origDer, &origDer2, &origDer3);
 
         // 1. linear interpolator
-        double fLinearVal = fLinear.value(x);
+        double fLinearVal = fLinear(x);
 
         // 2. natural cubic spline
         double fNaturalVal, fNaturalDer, fNaturalDer2;
@@ -1419,7 +1416,7 @@ bool test2dSpline()
     math::Matrix<double>
         fval (NNODESX, NNODESY), fderx (NNODESX, NNODESY),
         fdery(NNODESX, NNODESY), fderxy(NNODESX, NNODESY);
-    testfnc2d fnc;
+    TestFnc2d fnc;
     for(int i=0; i<NNODESX; i++)
         for(int j=0; j<NNODESY; j++) {
             double xy[2] = {xval[i], yval[j]};
@@ -1545,7 +1542,7 @@ bool test3dSpline()
 {
     std::cout << "\033[1;33m3d interpolation\033[0m\n";
     bool ok=true;
-    testfnc3d fnc3d;
+    TestFnc3d fnc3d;
     const int NNODESX=10, NNODESY=8, NNODESZ=7;
     std::vector<double>
     xval=math::createUniformGrid(NNODESX, 0, 6.283185),
@@ -1715,9 +1712,9 @@ bool testMonoSpline()
 {
     std::cout << "\033[1;33mMonotonic interpolation\033[0m\n";
     bool okpos1=true, okpos2=true, okpos3=true, okerr1=true, okerr2=true, okerr3=true;
-    testfncNd<1> f1;
-    testfncNd<2> f2;
-    testfncNd<3> f3;
+    TestFncNd<1> f1;
+    TestFncNd<2> f2;
+    TestFncNd<3> f3;
     const double XMIN=-1.8, XMAX=2.2, YMIN=-1.6, YMAX=2.4, ZMIN=-1.5, ZMAX=2.0;
     const int Mmin=6, Mmax=10;  // number of points in interpolation grids
     const int L=40;             // number of test points
@@ -1736,7 +1733,7 @@ bool testMonoSpline()
         math::MatrixView<double> fmat2d(M, M, &fval2d.front());
         // fill the input arrays for interpolation with values at grid nodes
         for(int i=0; i<M; i++) {
-            fval1d[i] = f1(xval[i]);
+            f1.eval(&xval[i], &fval1d[i]);
             for(int j=0; j<M; j++) {
                 double xyz[3] = {xval[i], yval[j], 0};
                 f2.eval(xyz, &fval2d[ i * M + j ]);
@@ -1758,7 +1755,7 @@ bool testMonoSpline()
         for(int i=0; i<L; i++) {
             double xyz[3] = { (XMIN*(L-0.5-i) + XMAX*(0.5+i)) / L, 0, 0};
             double f1o, f1c, f1r;
-            f1o = f1(xyz[0]);
+            f1.eval(&xyz[0], &f1o);
             f1c = c1(xyz[0]);
             f1r = r1(xyz[0]);
             ec1 += pow_2(f1c-f1o);
