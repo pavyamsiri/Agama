@@ -1,7 +1,7 @@
 /** \file    potential_multipole.h
     \brief   density and potential approximations based on spherical-harmonic expansion
     \author  Eugene Vasiliev
-    \date    2010-2025
+    \date    2010-2026
 
     This module provides tools for representing arbitrary density and potential profiles
     in terms of spherical-harmonic (or multipole) expansion, with coefficients being
@@ -115,7 +115,8 @@ public:
     const std::vector<double>& getRadii() const { return gridRadii; }
 
     /** return the radii of spline nodes and the array of density expansion coefficients.
-        \param[out]  radii  will be filled 
+        \param[out]  radii  will contain the grid radii.
+        \param[out]  coefsArray  will be filled with the array of coefficients at these radii.
     */
     void getCoefs(std::vector<double> &radii, std::vector< std::vector<double> > &coefsArray) const;
 
@@ -124,6 +125,10 @@ public:
         by this routine, but its elements corresponding to empty harmonics are left uninitialized.
     */
     void getCoefsAtRadius(double radius, double coefs[]) const;
+
+    /** return the size of coefficients array, to be used for pre-allocating the output storage in
+        getCoefsAtRadii() */
+    inline unsigned int getCoefsSize() const { return ind.size(); }
 
 private:
     /// radial grid
@@ -159,29 +164,34 @@ private:
     It is internally used by spherical-harmonic and azimuthal Fourier expansion potential classes,
     as an extrapolation to small or large radii beyond the definition region of the main potential.
     Each term with index {l,m} is given by
-    \f$  \Phi_{l,m}(r) = U_{l,m} * (r/r0)^{s_{l,m}}            + W_{l,m} * (r/r0)^v  \f$  if s!=v,
-    \f$  \Phi_{l,m}(r) = U_{l,m} * (r/r0)^{s_{l,m}} * ln(r/r0) + W_{l,m} * (r/r0)^v  \f$  if s==v.
+    \f$  \Phi_{l,m}(r) = W_{l,m} * (r/r0)^v + U_{l,m} * (r/r0)^{s_{l,m}} + Q * (r/r0)^2 \f$  if s!=v,
+    \f$  \Phi_{l,m}(r) = W_{l,m} * (r/r0)^v + U_{l,m} * (r/r0)^{s_{l,m}} * ln(r/r0)     \f$  if s==v.
     Here v=l for the inward extrapolation and v=-1-l for the outward extrapolation,
     so that the term W r^v represents the 'main' multipole component corresponding 
     to the Laplace equation, i.e. with zero density. The other term U r^s corresponds
-    to a power-law density profile of the given harmonic component (rho ~ r^{s-2}). 
+    to a power-law density profile of the given harmonic component (rho ~ r^{s-2}),
+    and the term Q r^2, optionally present only for v=0 and s>2 (i.e. for monopole at small radii),
+    allows one to represent a density profile with a finite central limit and radial gradient.
 */
 class PowerLawMultipole: public BasePotentialCyl {
 public:
     /** Create the potential from the three arrays: amplitudes of harmonic coefficients (U, W)
-        and the power-law slope of the coefficient U with nonzero Laplacian (S),
+        the power-law slope of the coefficient U with nonzero Laplacian (S),
+        the optional extra coefficient Q describing a profile with a finite central density,
         the reference radius r0 and the flag choosing between inward and outward extrapolation */
     PowerLawMultipole(double r0, bool inner,
         const std::vector<double>& S,
         const std::vector<double>& U,
-        const std::vector<double>& W);
+        const std::vector<double>& W,
+        const double Q = 0);
     virtual coord::SymmetryType symmetry() const { return ind.symmetry(); }
     virtual std::string name() const { return "PowerLaw"; }
 private:
-    const math::SphHarmIndices ind; ///< indexing scheme for sph.-harm.coefficients
-    double r0sq;                    ///< reference radius, squared
-    bool inner;                     ///< whether this is an inward or outward extrapolation
-    std::vector<double> S, U, W;    ///< sph.-harm.coefficients for extrapolation
+    const math::SphHarmIndices ind;    ///< indexing scheme for sph.-harm.coefficients
+    const double r0sq;                 ///< reference radius, squared
+    const bool inner;                  ///< whether this is an inward or outward extrapolation
+    const std::vector<double> S, U, W; ///< sph.-harm.coefficients for extrapolation
+    const double Q;                    ///< extra coefficient for the inward extrapolation of l=0 term
 
     virtual void evalCyl(const coord::PosCyl &pos,
         double* potential, coord::GradCyl* deriv, coord::HessCyl* deriv2, double /*time*/) const;
@@ -294,7 +304,7 @@ private:
 };
 
 
-/// Basis-set expansion for potentials using the Zhao(1996) basis set
+/// Basis-set expansion for potentials using the Zhao(1996) basis set, possibly time-dependent
 class BasisSet: public BasePotentialSph{
 public:
     /** create the potential from the analytic density or potential model.
@@ -333,38 +343,53 @@ public:
         coord::SymmetryType sym, int lmax, int mmax,
         unsigned int nmax, double eta=1.0, double r0=0.0);
 
-    /** construct the potential from the set of basis-set expansion coefficients.
+    /** construct a possibly time-dependent potential from the set of basis-set expansion coefficients.
+        If only one block of coefficients is provided, the potential is time-independent, otherwise
+        it is linearly interpolated in time and extrapolated as a constant.
         \param[in]  eta  is the shape parameter of basis functions
         (0.5 for Clutton-Brock, 1 for Hernquist-Ostriker, values between 1 and 2 provide best results),
         the 0th order function has the 'Spheroid' (Zhao) double-power-law density profile with
-        transition steepness alpha=1/eta, outer slope beta=3+1/eta, and inner slope gamma=2-1/eta;
+        transition steepness alpha=1/eta, outer slope beta=3+1/eta, and inner slope gamma=2-1/eta.
         \param[in]  r0   is the scale radius of basis functions
-        (typically should be comparable to half-mass radius);
-        \param[in] coefs is the array of coefficients
-        (first dimension is the number of spherical-harmonic coefficients (lmax+1)^2,
-        second dimension is the number of radial basis functions nmax+1).
+        (typically should be comparable to half-mass radius).
+        \param[in] coefs is the pointer to the first element of an array of time-dependent coefficients,
+        their number specified by the length of the timestamps vector, or if the latter is empty,
+        this implies that only one block of coefficients is used and the potential is time-independent.
+        Each block corresponding to one timestamp (or the only block for a time-independent potential)
+        is itself a nested 2d array with the first dimension being the number of spherical-harmonic
+        coefficiets (lmax+1)^2, and the second dimension being the number of radial basis functions
+        nmax+1.
+        \param[in] timestamps  is the array of timestamps, which may be empty.
     */
-    BasisSet(double eta, double r0, const std::vector<std::vector<double> > &coefs);
+    BasisSet(double eta, double r0, const std::vector<std::vector<double> > coefs[],
+        const std::vector<double> timestamps = std::vector<double>());
 
     /** return the array of basis-set expansion coefficients.
         \param[out] eta   will contain the shape parameter of basis functions;
         \param[out] r0    will contain the scale radius of basis functions;
-        \param[out] coefs will contain the coefficients.
+        \param[out] coefs will contain the coefficients (one nested 2d array for each timestamp,
+        or just one 2d array if the potential is not time-dependent).
+        \param[out] timestamps  will contain corresponding timestamps
+        (empty if the potential is not time-dependent).
     */
-    void getCoefs(double& eta, double& r0, std::vector<std::vector<double> > &coefs) const;
+    void getCoefs(double& eta, double& r0,
+        std::vector< std::vector<std::vector<double> > > &coefs,
+        std::vector<double> &timestamps) const;
 
     virtual coord::SymmetryType symmetry() const { return ind.symmetry(); }
     virtual std::string name() const { return myName(); }
     static std::string myName() { return "BasisSet"; }
 
 private:
+    const std::vector<double> timestamps;
+
+    const std::vector<std::vector<std::vector<double> > > coefs;  ///< arrays of expansion coefficients
+
     const math::SphHarmIndices ind;  ///< indexing scheme for sph.-harm. coefficients
 
     const double eta;  ///< shape parameter of basis functions
 
     const double r0;   ///< scale radius of basis functions
-
-    const std::vector<std::vector<double> > coefs;  ///< arrays of expansion coefficients
 
     virtual void evalSph(const coord::PosSph &pos,
         double* potential, coord::GradSph* deriv, coord::HessSph* deriv2, double /*time*/) const;

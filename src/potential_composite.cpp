@@ -415,19 +415,19 @@ std::string Composite::name() const
 }
 
 
-Evolving::Evolving(const std::vector<double> _times,
+Evolving::Evolving(const std::vector<double> _timestamps,
     const std::vector<PtrPotential> _instances,
     bool _interpLinear)
 :
-    times(_times), instances(_instances), interpLinear(_interpLinear)
+    timestamps(_timestamps), instances(_instances), interpLinear(_interpLinear)
 {
-    if(times.size() != instances.size())
+    if(timestamps.size() != instances.size())
         throw std::length_error("Evolving: input arrays are not equal in length");
-    if(times.size() == 0)
+    if(timestamps.size() == 0)
         throw std::invalid_argument("Evolving: empty list of potentials");
     sym = instances[0]->symmetry();
-    for(size_t i=1; i<times.size(); i++) {
-        if(!(times[i] > times[i-1]))
+    for(size_t i=1; i<timestamps.size(); i++) {
+        if(!(timestamps[i] > timestamps[i-1]))
             throw std::invalid_argument("Evolving: times must be sorted in increasing order");
         coord::SymmetryType isym = instances[i]->symmetry();
         if(isUnknown(isym) || isUnknown(sym))
@@ -442,7 +442,7 @@ void Evolving::evalCar(const coord::PosCar &pos,
 {
     ptrdiff_t index;
     double weight;
-    searchInterp(time, times, interpLinear, /*output*/ index, weight);
+    searchInterp(time, timestamps, interpLinear, /*output*/ index, weight);
     instances[index]->eval(pos, potential, deriv, deriv2, time);
     if(weight!=1) {
         // evaluate the potential at the other time stamp and interpolate between them
@@ -464,7 +464,7 @@ double Evolving::densityCar(const coord::PosCar &pos, double time) const
 {
     ptrdiff_t index;
     double weight;
-    searchInterp(time, times, interpLinear, /*output*/ index, weight);
+    searchInterp(time, timestamps, interpLinear, /*output*/ index, weight);
     double result = instances[index]->density(pos, time);
     if(weight!=1)
         result = weight * result + (1-weight) * instances[index+1]->density(pos, time);
@@ -766,7 +766,14 @@ void Scaled<BasePotential>::evalmanyDensitySph(const size_t npoints, const coord
 void Scaled<BasePotential>::evalCar(const coord::PosCar &pos,
     double* potential, coord::GradCar* deriv, coord::HessCar* deriv2, double time) const
 {
-    double s = 1 / scale(time), as1 = ampl(time) * s, as2 = as1 * s, as3 = as2 * s;
+    double a = ampl(time);
+    if(a == 0) {   // when amplitude is zero, skip evaluating the potential
+        if(potential)  *potential = 0;
+        if(deriv)      coord::clear(*deriv);
+        if(deriv2)     coord::clear(*deriv2);
+        return;
+    }
+    double s = 1 / scale(time), as1 = a * s, as2 = as1 * s, as3 = as2 * s;
     pot->eval(coord::PosCar(pos.x * s, pos.y * s, pos.z * s), potential, deriv, deriv2, time);
     if(potential)  *potential *= as1;
     if(deriv)  {
@@ -787,7 +794,14 @@ void Scaled<BasePotential>::evalCar(const coord::PosCar &pos,
 void Scaled<BasePotential>::evalCyl(const coord::PosCyl &pos,
     double* potential, coord::GradCyl* deriv, coord::HessCyl* deriv2, double time) const
 {
-    double s = 1 / scale(time), as1 = ampl(time) * s, as2 = as1 * s, as3 = as2 * s;
+    double a = ampl(time);
+    if(a == 0) {   // when amplitude is zero, skip evaluating the potential
+        if(potential)  *potential = 0;
+        if(deriv)      coord::clear(*deriv);
+        if(deriv2)     coord::clear(*deriv2);
+        return;
+    }
+    double s = 1 / scale(time), as1 = a * s, as2 = as1 * s, as3 = as2 * s;
     pot->eval(coord::PosCyl(pos.R * s, pos.z * s, pos.phi), potential, deriv, deriv2, time);
     if(potential)  *potential *= as1;
     if(deriv)  {
@@ -808,7 +822,14 @@ void Scaled<BasePotential>::evalCyl(const coord::PosCyl &pos,
 void Scaled<BasePotential>::evalSph(const coord::PosSph &pos,
     double* potential, coord::GradSph* deriv, coord::HessSph* deriv2, double time) const
 {
-    double s = 1 / scale(time), as1 = ampl(time) * s, as2 = as1 * s, as3 = as2 * s;
+    double a = ampl(time);
+    if(a == 0) {   // when amplitude is zero, skip evaluating the potential
+        if(potential)  *potential = 0;
+        if(deriv)      coord::clear(*deriv);
+        if(deriv2)     coord::clear(*deriv2);
+        return;
+    }
+    double s = 1 / scale(time), as1 = a * s, as2 = as1 * s, as3 = as2 * s;
     pot->eval(coord::PosSph(pos.r * s, pos.theta, pos.phi), potential, deriv, deriv2, time);
     if(potential)  *potential *= as1;
     if(deriv)  {

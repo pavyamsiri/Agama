@@ -431,9 +431,13 @@ class DensityDataset:
         '''
         Arguments:
           density:   3d density profile of stars;
-          tolerance: relative error on density constraints;
+          tolerance: relative error on density constraints (could be zero to satisfy them exactly);
+              when type='DensitySphHarm' or 'DensityCylindrical***', the error assigned to
+              higher-order Fourier or spherical-harmonic terms is computed as the value of
+              the corresponding l=0,m=0 term multiplied by tolerance, instead of using the values
+              of these terms, since they may be very small at high orders.
           alpha, beta, gamma: three Euler angles specifying the orientation of the intrinsic model
-              model coordinate system w.r.t. the image plane (*not* used for modelling, only for plotting);
+             coordinate system w.r.t. the image plane (*not* used for modelling, only for plotting).
           target_params:  all other parameters of the Target object (including type='Density***').
         '''
         # extract some important arguments from the dictionary in a case-insensitive way
@@ -441,9 +445,14 @@ class DensityDataset:
         gridr = None
         gridz = None
         for k in target_params:
-            if k.upper() == 'TYPE':  targetType = target_params[k]
-            if k.upper() == 'GRIDR': gridr = target_params[k]
-            if k.upper() == 'GRIDZ': gridz = target_params[k]
+            if k.upper() == 'TYPE':
+                targetType = target_params[k]
+            if k.upper() == 'GRIDR':
+                gridr = target_params[k]
+                nr = len(gridr)-1 if gridr[0]==0 else len(gridr)
+            if k.upper() == 'GRIDZ':
+                gridz = target_params[k]
+                nz = len(gridz)-1 if gridz[0]==0 else len(gridz)
         if targetType is None:
             raise TypeError('DensityDataset should be constructed with a Density*** target type')
         self.target_params = target_params
@@ -457,18 +466,33 @@ class DensityDataset:
         self.totalMass = density.totalMass()
         self.cons_val = _numpy.hstack(( 1, self.target(density) / self.totalMass ))
         self.cons_err = _numpy.hstack(( 0, abs(self.cons_val[1:]) * tolerance ))
+        # for schemes based on Fourier harmonics, use the values of the 0th harmonic to assign
+        # the tolerances on the higher-order harmonics, which themselves may be very small and
+        # thus infeasible to attain at the same relative precision as the values in the 0th harmonic
+        if targetType.upper() == 'DENSITYCYLINDRICALTOPHAT':
+            nphi = len(self.target) * 1.0 / (nr*nz) - 1  # number of higher-order Fourier harmonics
+            if nphi != round(nphi): raise RuntimeError('Error in interpreting the grid in %s' % self.target)
+            else: nphi = int(nphi)
+            ncons = nr*nz  # number of coefficients in the 0th harmonic
+            self.cons_err[1+ncons:] = _numpy.tile(self.cons_err[1:1+ncons], nphi)
+        elif targetType.upper() == 'DENSITYCYLINDRICALLINEAR':
+            nphi = (len(self.target) - (nr+1)*(nz+1.)) / (nr*(nz+1))  # number of higher-order Fourier harmonics
+            if nphi != round(nphi): raise RuntimeError('Error in interpreting the grid in %s' % self.target)
+            else: nphi = int(nphi)
+            ncons = (nr+1)*(nz+1)  # number of coefficients in the 0th harmonic
+            self.cons_err[1+ncons:] = _numpy.tile(
+                self.cons_err[1:1+ncons].reshape(nz+1, nr+1)[:,1:].reshape(nr*(nz+1)), nphi)
+        elif targetType.upper() == 'DENSITYSPHHARM':
+            nang = (len(self.target) - 1.0) / nr - 1  # number of angular coefficients at each radius
+            if nang != round(nang): raise RuntimeError('Error in interpreting the grid in %s' % self.target)
+            else: nang = int(nang)
+            ncons = nr+1   # number of coefficients in the l=0,m=0 harmonic
+            self.cons_err[1+ncons:] = _numpy.tile(self.cons_err[2:1+ncons], nang)
+        else:  # DensityClassic***
+            ncons = len(self.target)   # all constraints describe masses in 3d grid cells
         # constraints with very small (or zero) absolute values are assigned a zero tolerance
         self.cons_err[self.cons_err < 1e-12 * _numpy.max(abs(self.cons_val[1:]))] = 0.
-        # compute the fraction of total mass of the density model within the extent of the grid;
-        # the method for obtaining this fraction depends on the discretization scheme:
-        if 'DENSITYCLASSIC' in targetType.upper():
-            ncons = len(self.target)   # all constraints describe masses in 3d grid cells
-        elif 'DENSITYCYLINDRICAL' in targetType.upper():
-            ncons = len(gridr) * len(gridz)   # take only the m=0 harmonic term in the array of constraints
-        elif 'DENSITYSPHHARM' == targetType.upper():
-            ncons = len(gridr)+1   # same but for the l=0,m=0 harmonic term only
-        else:
-            ncons = 0    # unknown discretization scheme, should have failed at the earlier stage
+        # compute the fraction of total mass of the density model within the extent of the grid
         print('%s with %i constraints; total mass: %g; fraction of mass in %i density bins: %g' %
             (targetType, len(self.target), self.totalMass, ncons, sum(self.cons_val[1:ncons+1])))
 
@@ -891,7 +915,7 @@ class KinemDatasetHist:
         Return: array of size num_aper x ghorder containing the values  v,sigma,h3..hM  in each aperture
         '''
         ghorder = 6
-        ind = tuple([1,2]+range(6,ghorder+4))  # indices of columns containing v,sigma,h3...hM in the matrix returned by ghMoments
+        ind = (1,2) + tuple(range(6, ghorder+4))  # indices of columns containing v,sigma,h3...hM in the matrix returned by ghMoments
         if LOSVD is None:
             ghm_val, ghm_err = ghMomentsErrors(degree=self.obs_degree, gridv=self.obs_gridv,
                 values=self.obs_val, errors=self.obs_err, ghorder=ghorder)
@@ -905,18 +929,12 @@ class KinemDatasetHist:
         Construct the interpolated LOSVD profiles from the histograms and their uncertainties (used in runPlot).
         Arguments:
           gridv:  grid for computing the profiles
-        Returns:  array of shape  3 x num_aper x len(gridv)  containing 16, 50 and 84th percentiles of LOSVDs in each aperture
+        Returns:  array of shape  3 x num_aper x len(gridv)  containing 16, 50 and 84th percentiles of LOSVDs in each aperture.
+        Note that for degree>=1 the uncertainties returned by this method are somewhat overestimated.
         '''
-        nboot = 100
-        result= _numpy.zeros((3, self.num_aper, len(gridv)))
-        for n in range(self.num_aper):
-            boots = _agama.bsplineInterp(
-                self.obs_degree, self.obs_gridv,
-                _numpy.column_stack([self.obs_val[n]] * nboot) +
-                _numpy.column_stack([self.obs_err[n]] * nboot) * _numpy.random.normal(size=(self.num_cons, nboot)),
-                gridv)
-            result[:,n] = _numpy.percentile(boots, axis=1, q=[16,50,84])
-        return result
+        return _agama.bsplineInterp(self.obs_degree, self.obs_gridv,
+            _numpy.dstack((self.obs_val - self.obs_err, self.obs_val, self.obs_val + self.obs_err)),
+            gridv).T
 
 
 
@@ -927,21 +945,26 @@ def runModel(datasets, potential, ic, Omega=0, intTime=100.0,
     Construct the orbit library for the given potential and datasets/constraints,
     and solve the optimization problem multiple times with varying values of mass-to-light ratio.
     Arguments:
-      datasets:   a list of objects containing targets and constraints
-      potential:  total potential in which to integrate the orbits
-      ic:         initial conditions for the orbits (Nx6 array)
-      Omega:      pattern speed
-      intTime:    integration time in units of dynamical time of each orbit
-      regul:      regularization parameter for the solution
-      Upsilon:    initial value of M/L for the search
-      multstep:   multiplicative increment/decrement for Upsilon during the search
-      deltaChi2:  search stops when the chi2 value of the best-fit model is bracketed from both larger and smaller Upsilon values by at least that much
-      filePrefix: filename (w/o extension) for storing the model LOSVDs and orbit weights; solutions for all values of Upsilon are stored in one .npz archive
-      linePrefix: data written at the beginning of each line in the results file, before the values of Upsilon and chi2 for each dataset are appended
-      fileResult: the name of the text file storing the summary information
-      nbody:      if provided, create an N-body representation of the best-fit orbit superposition model in this series, sampled by the given number of particles and written into {filePrefix}_Y{best-fit Upsilon}.nbody
-      nbodyformat: format for saving the N-body model (text, nemo or gadget)
-    Returns: chi2 of the best-fit model in this series (also stores all models in the result file)
+      datasets:   a list of objects containing targets and constraints.
+      potential:  total potential in which to integrate the orbits.
+      ic:         initial conditions for the orbits (Nx6 array).
+      Omega:      pattern speed (default 0).
+      intTime:    integration time in units of dynamical time of each orbit (default 100).
+      regul:      regularization parameter for the solution (default 1.0).
+      Upsilon:    initial value of M/L for the search (default 1.0).
+      multstep:   multiplicative increment/decrement for Upsilon during the search (default 2**0.1).
+      deltaChi2:  search stops when the chi2 value of the best-fit model is bracketed from both
+                  larger and smaller Upsilon values by at least that much (default 100).
+      filePrefix: filename (w/o extension) for storing the model LOSVDs and orbit weights;
+                  solutions for all values of Upsilon are stored in one .npz archive.
+      linePrefix: data written at the beginning of each line in the results file,
+                  before the values of Upsilon and chi2 for each dataset are appended.
+      fileResult: the name of the text file storing the summary information (default results.dat)
+      nbody:      if provided, create an N-body representation of the best-fit orbit-superposition
+                  model in this series, sampled by the given number of particles and written into
+                  {filePrefix}_Y{best-fit Upsilon}.nbody (default False).
+      nbodyformat: format for saving the N-body model: text (default), nemo or gadget.
+    Returns: chi2 of the best-fit model in this series (also stores all models in the result file).
     '''
 
     try: len(datasets)   # ok if it is a tuple/list
@@ -956,21 +979,28 @@ def runModel(datasets, potential, ic, Omega=0, intTime=100.0,
     ic = ic.astype(_numpy.float32)
     inttime = (potential.Tcirc(ic) * intTime).astype(_numpy.float32)
     inttime[_numpy.isnan(inttime)] = _numpy.nanmax(inttime)
+    # output format for trajectories: if exporting an N-body model, store them as agama.Orbit interpolators,
+    # otherwise just as a relatively small array of equally-sampled points used to compute orbit properties
+    dtype = object if nbody else _numpy.float32
+    trajsize = 0 if nbody else 100
     matrices = _agama.orbit(potential=potential, ic=ic, time=inttime, Omega=Omega,
-        targets=[d.target for d in datasets], dtype=object)
+        targets=[d.target for d in datasets], dtype=dtype, trajsize=trajsize, separateTime=True)
     trajs    = matrices[-1]   # list of orbit trajectories
-    matrices = matrices[:-1]  # matrices corresponding to datasets
-    assert(len(matrices) == len(datasets))
+    matrices = matrices[:len(datasets)]  # matrices corresponding to datasets
 
     # record various structural properties of orbits to be stored in the npz archive
     Rm, Lz, L2 = _numpy.zeros((3, len(trajs)))
     for iorb, orb in enumerate(trajs):
-        # construct regularly-spaced trajectory from the interpolator
-        t = orb(_numpy.linspace(0.0005, 0.9995, 1000) * (orb[-1]-orb[0]) + orb[0])
-        Rm[iorb] = _numpy.mean(_numpy.sum(t[:,0:3]**2,axis=1)**0.5)   # mean radius of each orbit
-        Lz[iorb] = _numpy.mean( t[:,0]*t[:,4]-t[:,1]*t[:,3])
-        L2[iorb] = _numpy.mean((t[:,0]*t[:,4]-t[:,1]*t[:,3])**2 + (t[:,1]*t[:,5]-t[:,2]*t[:,4])**2 + (t[:,2]*t[:,3]-t[:,0]*t[:,5])**2)
-    E  = potential.potential(ic[:,0:3]) + _numpy.sum(ic[:,3:6]**2, axis=1) * 0.5  # total energy of each orbit
+        # if an orbit was stored as an instance of agama.Orbit, convert it a regularly-spaced trajectory
+        # (the original interpolator remains available for creating an N-body snapshot later)
+        if dtype==object:
+            orb = orb(_numpy.linspace(orb[0], orb[-1], 100))
+        Rm[iorb] = _numpy.mean(_numpy.sum(orb[:,0:3]**2, axis=1)**0.5)   # mean radius of each orbit
+        Lz[iorb] = _numpy.mean( orb[:,0]*orb[:,4]-orb[:,1]*orb[:,3])
+        L2[iorb] = _numpy.mean((orb[:,0]*orb[:,4]-orb[:,1]*orb[:,3])**2 +
+             (orb[:,1]*orb[:,5]-orb[:,2]*orb[:,4])**2 + (orb[:,2]*orb[:,3]-orb[:,0]*orb[:,5])**2)
+    # total energy of each orbit (note that it is not conserved when Omega!=0)
+    E  = potential.potential(ic[:,0:3]) + _numpy.sum(ic[:,3:6]**2, axis=1) * 0.5
     Rc = potential.Rcirc(E=E)                      # radius of a circular orbit with the given energy
     Lc = 2*_numpy.pi * Rc**2 / potential.Tcirc(E)  # angular momentum of a circular orbit with this energy
     Ci = Lz / L2**0.5  # Lz/L = cos(incl)
@@ -1094,13 +1124,10 @@ def runModel(datasets, potential, ic, Omega=0, intTime=100.0,
             best = min(best, chib)
 
     if nbody:
-        status, particles = _agama.sampleOrbitLibrary(nbody, trajs, this.bestweights)
-        if status:
-            _agama.writeSnapshot(filePrefix+'_Y%.3f.nbody' % this.Upsilon,
-                (_numpy.hstack((particles[0][:,0:3], particles[0][:,3:6]*this.Upsilon**0.5)), particles[1]*this.Upsilon),
-                nbodyFormat)
-        else:
-            print("Failed to produce an N-body model: %s" % particles)
+        particles = _agama.sampleOrbitLibrary(nbody, trajs, this.bestweights)
+        _agama.writeSnapshot(filePrefix+'_Y%.3f.nbody' % this.Upsilon,
+            (_numpy.hstack((particles[0][:,0:3], particles[0][:,3:6]*this.Upsilon**0.5)), particles[1]*this.Upsilon),
+            nbodyFormat)
 
     return best
 
